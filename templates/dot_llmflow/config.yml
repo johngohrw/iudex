@@ -1,0 +1,6 @@
+# llm-flow configuration
+max_agents: 3
+stall_timeout_minutes: 10
+poll_interval_seconds: 30
+agent_command: "pi dev"      # command to launch your coding agent
+merge_strategy: squash       # only squash supported for now
