@@ -1,4 +1,4 @@
-# llm-flow configuration
+# iudex configuration
 max_agents: 3
 stall_timeout_minutes: 10
 poll_interval_seconds: 30

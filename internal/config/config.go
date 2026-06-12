@@ -24,7 +24,7 @@ var defaults = Config{
 	MergeStrategy: "squash",
 }
 
-// FindWorkspace walks up from start (or CWD) looking for .llmflow/config.yml.
+// FindWorkspace walks up from start (or CWD) looking for .iudex/config.yml.
 func FindWorkspace(start string) (string, error) {
 	if start == "" {
 		var err error
@@ -38,7 +38,7 @@ func FindWorkspace(start string) (string, error) {
 		return "", err
 	}
 	for {
-		if _, err := os.Stat(filepath.Join(dir, ".llmflow", "config.yml")); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, ".iudex", "config.yml")); err == nil {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
@@ -47,12 +47,12 @@ func FindWorkspace(start string) (string, error) {
 		}
 		dir = parent
 	}
-	return "", fmt.Errorf("not inside an llm-flow workspace; run 'llm-flow init' first")
+	return "", fmt.Errorf("not inside an iudex workspace; run 'iudex init' first")
 }
 
 // Load reads and merges config.yml over defaults.
 func Load(workspace string) (*Config, error) {
-	data, err := os.ReadFile(filepath.Join(workspace, ".llmflow", "config.yml"))
+	data, err := os.ReadFile(filepath.Join(workspace, ".iudex", "config.yml"))
 	if err != nil {
 		return nil, err
 	}

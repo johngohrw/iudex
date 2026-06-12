@@ -26,7 +26,7 @@ Category:
 State:
 - `needs-triage` — not yet evaluated
 - `needs-info` — waiting on requester for more detail
-- `ready-for-agent` — fully specified; write to `queue/` and register with `llm-flow new-ticket`
+- `ready-for-agent` — fully specified; write to `queue/` and register with `iudex new-ticket`
 - `ready-for-human` — needs human judgment; write to `queue/` with HITL flag
 - `wontfix` — will not be actioned; record in `docs/out-of-scope/`
 
@@ -39,7 +39,7 @@ The human invokes triage and describes what they want in natural language:
 
 ## Show what needs attention
 
-Run `llm-flow status` and present tickets grouped by state. Highlight anything in `pending-human-review` that needs action. Let the human pick.
+Run `iudex status` and present tickets grouped by state. Highlight anything in `pending-human-review` that needs action. Let the human pick.
 
 If there are informal ideas not yet in `queue/`, ask the human to describe them.
 
@@ -84,7 +84,7 @@ Questions must be specific and actionable, not "please provide more info".
 When a ticket moves to `ready-for-agent`, ensure it has a clear agent brief in the Problem Statement. Principles:
 - **Behavioral, not procedural.** Describe what the system should do, not how. Good: "The orchestrator should claim at most `max_agents` tickets per tick." Bad: "Edit line 42 of orchestrator.go."
 - **Durable.** Don't reference line numbers. Name exported types, functions, and config fields.
-- **Complete acceptance criteria.** Each criterion must be independently verifiable with `go test` or by running `llm-flow <command>`.
+- **Complete acceptance criteria.** Each criterion must be independently verifiable with `go test` or by running `iudex <command>`.
 - **Explicit scope boundary.** State what is out of scope to prevent gold-plating.
 
 ## Out-of-scope knowledge base

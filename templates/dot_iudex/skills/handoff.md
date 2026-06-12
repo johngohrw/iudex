@@ -7,7 +7,7 @@ Tell Claude: "Use handoff [to prepare for: <focus of next session>]"
 
 ## What Claude does
 
-Write a handoff document and save it to the OS temp directory (`$TMPDIR/llm-flow-handoff-<timestamp>.md`). Tell the user the absolute path.
+Write a handoff document and save it to the OS temp directory (`$TMPDIR/iudex-handoff-<timestamp>.md`). Tell the user the absolute path.
 
 ### Document structure
 
@@ -23,7 +23,7 @@ What was being accomplished and why. 1–3 paragraphs max.
 
 ## Current workspace state
 
-- Active tickets: output of `llm-flow status` (include states)
+- Active tickets: output of `iudex status` (include states)
 - Relevant queue/ tickets: list with IDs and titles
 - Key files changed this session: paths relative to workspace root
 
@@ -47,7 +47,7 @@ Unresolved decisions or information the next agent will need.
 ## Suggested next steps
 
 Concrete actions the next agent should take first, in order:
-1. [Action] — e.g. "Run `llm-flow status` to see current ticket states"
+1. [Action] — e.g. "Run `iudex status` to see current ticket states"
 2. [Action] — e.g. "Use grill-me on the open question about X"
 3. [Action] — e.g. "Use create-issues from docs/prd/feature.md"
 ```

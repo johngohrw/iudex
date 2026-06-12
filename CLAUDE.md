@@ -1,8 +1,8 @@
-# llm-flow-go — Agent Handoff Document
+# iudex — Agent Handoff Document
 
 ## What this is
 
-llm-flow-go is a Go CLI tool that orchestrates parallel AI coding agents (Claude Code, Aider, etc.) across git worktrees. It manages a queue → implement → QA → human review → merge pipeline, keeping every stage file-based and git-native with no runtime dependencies beyond `git`.
+iudex is a Go CLI tool that orchestrates parallel AI coding agents (Claude Code, Aider, etc.) across git worktrees. It manages a queue → implement → QA → human review → merge pipeline, keeping every stage file-based and git-native with no runtime dependencies beyond `git`.
 
 It is a Go rewrite of a Python prototype. The workspace file layout, ticket pipeline, and all design decisions are **locked in** — do not change them. Add features only if explicitly instructed.
 
@@ -11,10 +11,10 @@ It is a Go rewrite of a Python prototype. The workspace file layout, ticket pipe
 ## Build
 
 ```bash
-go mod tidy && go build -o llm-flow .
+go mod tidy && go build -o iudex .
 
 # Cross-compile for Raspberry Pi 3B
-GOOS=linux GOARCH=arm go build -o llm-flow-arm .
+GOOS=linux GOARCH=arm go build -o iudex-arm .
 
 # Offline / restricted build
 ./build.sh --gopath
@@ -27,12 +27,12 @@ Requires Go 1.22+. All dependencies are vendored in `vendor/`.
 ## Project layout
 
 ```
-llm-flow-go/
+iudex/
 ├── main.go                    # Cobra CLI — all 10 commands
-├── go.mod                     # module: llm-flow
+├── go.mod                     # module: iudex
 ├── vendor/                    # vendored deps (bubbletea, lipgloss, cobra, yaml.v3)
 ├── templates/                 # embedded via //go:embed all:templates
-│   ├── dot_llmflow/           # → .llmflow/ on init (config.yml, impl.md, review.md, skills/)
+│   ├── dot_iudex/           # → .iudex/ on init (config.yml, impl.md, review.md, skills/)
 │   └── docs/state.md
 └── internal/
     ├── config/config.go       # workspace discovery, path helpers, YAML config
@@ -46,11 +46,11 @@ llm-flow-go/
 
 ---
 
-## Workspace layout (what `llm-flow init` creates)
+## Workspace layout (what `iudex init` creates)
 
 ```
 <workspace>/
-├── .llmflow/
+├── .iudex/
 │   ├── config.yml             # max_agents, poll_interval_seconds, stall_timeout_minutes, agent_command, merge_strategy
 │   ├── impl.md                # system prompt injected into impl agent sessions
 │   ├── review.md              # system prompt injected into QA agent sessions
@@ -71,7 +71,7 @@ llm-flow-go/
 ## Ticket lifecycle
 
 ```
-llm-flow new-ticket ticket-00001 "Add login page"
+iudex new-ticket ticket-00001 "Add login page"
   → creates queue/ticket-00001.md
   → appends {state: queued} to events.jsonl
 
@@ -92,10 +92,10 @@ QA agent reads brief + log + diff, writes .task/review.md
   → appends {state: pending-human-review} or {state: in-progress} (if blocking issues)
 
 Human runs:
-  llm-flow review ticket-00001   # prints brief, log, diff, QA review
-  llm-flow merge ticket-00001    # squash-merges → main, archives, removes worktree
-  llm-flow reject ticket-00001   # archives as _rejected/, returns brief to queue/
-  llm-flow manual ticket-00001   # human takes over; llm-flow finish when done
+  iudex review ticket-00001   # prints brief, log, diff, QA review
+  iudex merge ticket-00001    # squash-merges → main, archives, removes worktree
+  iudex reject ticket-00001   # archives as _rejected/, returns brief to queue/
+  iudex manual ticket-00001   # human takes over; iudex finish when done
 ```
 
 **State machine:**
@@ -118,24 +118,24 @@ pending-human-review → human-manual → pending-review (via finish)
 
 | Command | Description |
 |---------|-------------|
-| `llm-flow init <dir>` | Scaffold workspace from embedded templates; initializes git repo if none exists |
-| `llm-flow start` | Launch Bubble Tea TUI + start orchestrator goroutine |
-| `llm-flow new-ticket <id> <title> [--deps <ids>] [--priority 1-5]` | Create ticket markdown in queue/ |
-| `llm-flow review <id>` | Print brief, log, diff, QA review; show next actions |
-| `llm-flow merge <id>` | Squash-merge to main, archive, remove worktree |
-| `llm-flow reject <id> [--reason]` | Archive as _rejected, return brief to queue |
-| `llm-flow finish <id>` | Commit WIP, transition to pending-review (hand off to QA) |
-| `llm-flow manual <id>` | Enter human-manual state; prints cd path |
-| `llm-flow status` | Print all ticket states (no TUI) |
-| `llm-flow archive-list` | List archived tickets with diff/review presence |
+| `iudex init <dir>` | Scaffold workspace from embedded templates; initializes git repo if none exists |
+| `iudex start` | Launch Bubble Tea TUI + start orchestrator goroutine |
+| `iudex new-ticket <id> <title> [--deps <ids>] [--priority 1-5]` | Create ticket markdown in queue/ |
+| `iudex review <id>` | Print brief, log, diff, QA review; show next actions |
+| `iudex merge <id>` | Squash-merge to main, archive, remove worktree |
+| `iudex reject <id> [--reason]` | Archive as _rejected, return brief to queue |
+| `iudex finish <id>` | Commit WIP, transition to pending-review (hand off to QA) |
+| `iudex manual <id>` | Enter human-manual state; prints cd path |
+| `iudex status` | Print all ticket states (no TUI) |
+| `iudex archive-list` | List archived tickets with diff/review presence |
 
 ---
 
 ## Internal packages
 
 ### `internal/config`
-- `FindWorkspace(dir)` — walks up from cwd looking for `.llmflow/config.yml`
-- `Load(workspace)` — parses `.llmflow/config.yml` into `Config` struct
+- `FindWorkspace(dir)` — walks up from cwd looking for `.iudex/config.yml`
+- `Load(workspace)` — parses `.iudex/config.yml` into `Config` struct
 - Path helpers: `QueueDir`, `ArchiveDir`, `WorktreesDir`, `MainWorktree`, `TaskDir`, `TaskWorktree`, `EventsFile`
 - `Config` fields: `MaxAgents`, `PollInterval` (mapped from `poll_interval_seconds`), `StallTimeout` (mapped from `stall_timeout_minutes`), `AgentCommand`, `MergeStrategy`
 
@@ -186,7 +186,7 @@ pending-human-review → human-manual → pending-review (via finish)
 | `.task/` inside each worktree | Colocalizes context with work; no cross-worktree path math |
 | QA agents are read-only | Enforces clean separation between impl and review phases |
 | Stall detection via `git log --since` | No heartbeat files to manage or clean up |
-| Human approves all merges | Nothing reaches main without explicit `llm-flow merge` |
+| Human approves all merges | Nothing reaches main without explicit `iudex merge` |
 | Squash-merge only | Clean linear history on main |
 | All git ops via `exec.Command` | No libgit2 dependency; works wherever `git` is installed |
 | `//go:embed all:templates` | Config, rules, skills ship inside the binary |
@@ -201,7 +201,7 @@ pending-human-review → human-manual → pending-review (via finish)
 | `github.com/spf13/cobra` | CLI commands and flags |
 | `github.com/charmbracelet/bubbletea` | Elm-style TUI framework |
 | `github.com/charmbracelet/lipgloss` | Terminal styles and borders |
-| `gopkg.in/yaml.v3` | Parse `.llmflow/config.yml` |
+| `gopkg.in/yaml.v3` | Parse `.iudex/config.yml` |
 
 All vendored. No network access needed to build.
 
@@ -219,7 +219,7 @@ The core pipeline is functional. Known gaps before production hardening:
 
 ## Non-goals (v1)
 
-- No automatic merging — human must run `llm-flow merge`
+- No automatic merging — human must run `iudex merge`
 - No task bundling or AI-driven ticket assignment
 - No remote/multi-machine coordination
 - No web dashboard (deferred)

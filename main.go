@@ -14,11 +14,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"llm-flow/internal/archive"
-	"llm-flow/internal/config"
-	"llm-flow/internal/events"
-	"llm-flow/internal/git"
-	"llm-flow/internal/tui"
+	"iudex/internal/archive"
+	"iudex/internal/config"
+	"iudex/internal/events"
+	"iudex/internal/git"
+	"iudex/internal/tui"
 )
 
 //go:embed all:templates
@@ -32,7 +32,7 @@ func main() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "llm-flow",
+	Use:   "iudex",
 	Short: "AI agent orchestration for git worktrees",
 }
 
@@ -60,7 +60,7 @@ func init() {
 
 var initCmd = &cobra.Command{
 	Use:   "init <workspace-dir>",
-	Short: "Initialize a new llm-flow workspace",
+	Short: "Initialize a new iudex workspace",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		workspaceDir := args[0]
@@ -68,7 +68,7 @@ var initCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Initializing llm-flow workspace at %s\n", workspace)
+		fmt.Printf("Initializing iudex workspace at %s\n", workspace)
 
 		// Create workspace dir if it doesn't exist
 		if err := os.MkdirAll(workspace, 0o755); err != nil {
@@ -134,7 +134,7 @@ var initCmd = &cobra.Command{
 			}
 		}
 
-		// Scaffold .llmflow/ and docs/ from embedded templates
+		// Scaffold .iudex/ and docs/ from embedded templates
 		if err := scaffoldTemplates(workspace); err != nil {
 			return fmt.Errorf("scaffold templates: %w", err)
 		}
@@ -148,21 +148,21 @@ var initCmd = &cobra.Command{
 		}
 
 		fmt.Println("\n✓ Workspace ready.")
-		fmt.Printf("  Next: edit %s/.llmflow/config.yml\n", workspace)
-		fmt.Printf("  Then: cd %s && llm-flow start\n", workspace)
+		fmt.Printf("  Next: edit %s/.iudex/config.yml\n", workspace)
+		fmt.Printf("  Then: cd %s && iudex start\n", workspace)
 		return nil
 	},
 }
 
 // scaffoldTemplates copies embedded templates into the workspace.
-// templates/dot_llmflow/ → .llmflow/, templates/docs/ → docs/
+// templates/dot_iudex/ → .iudex/, templates/docs/ → docs/
 func scaffoldTemplates(workspace string) error {
 	return fs.WalkDir(templateFS, "templates", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		rel := strings.TrimPrefix(path, "templates/")
-		rel = strings.Replace(rel, "dot_llmflow", ".llmflow", 1)
+		rel = strings.Replace(rel, "dot_iudex", ".iudex", 1)
 		if rel == "" {
 			return nil
 		}
@@ -294,9 +294,9 @@ var reviewCmd = &cobra.Command{
 
 		state, _ := events.GetTicketState(workspace, ticketID)
 		fmt.Printf("\nCurrent state: %s\n\n", state)
-		fmt.Printf("  Approve:  llm-flow merge %s\n", ticketID)
-		fmt.Printf("  Reject:   llm-flow reject %s --reason \"...\"\n", ticketID)
-		fmt.Printf("  Manual:   llm-flow manual %s\n", ticketID)
+		fmt.Printf("  Approve:  iudex merge %s\n", ticketID)
+		fmt.Printf("  Reject:   iudex reject %s --reason \"...\"\n", ticketID)
+		fmt.Printf("  Manual:   iudex manual %s\n", ticketID)
 		return nil
 	},
 }
@@ -457,7 +457,7 @@ var manualCmd = &cobra.Command{
 
 		wt := config.TaskWorktree(workspace, ticketID)
 		rel, _ := filepath.Rel(workspace, wt)
-		fmt.Printf("→ Manual session started for %s\n  cd %s\n  Done: llm-flow finish %s\n  Abort: llm-flow reject %s\n",
+		fmt.Printf("→ Manual session started for %s\n  cd %s\n  Done: iudex finish %s\n  Abort: iudex reject %s\n",
 			ticketID, rel, ticketID, ticketID)
 		return nil
 	},

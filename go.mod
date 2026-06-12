@@ -1,4 +1,4 @@
-module llm-flow
+module iudex
 
 go 1.22
 

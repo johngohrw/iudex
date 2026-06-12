@@ -22,9 +22,9 @@ import (
 
 	"strings"
 
-	"llm-flow/internal/config"
-	"llm-flow/internal/events"
-	"llm-flow/internal/git"
+	"iudex/internal/config"
+	"iudex/internal/events"
+	"iudex/internal/git"
 )
 
 // SpawnCommand is a ready-to-run agent command surfaced to the TUI.

@@ -14,10 +14,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"llm-flow/internal/config"
-	"llm-flow/internal/events"
-	"llm-flow/internal/git"
-	"llm-flow/internal/orchestrator"
+	"iudex/internal/config"
+	"iudex/internal/events"
+	"iudex/internal/git"
+	"iudex/internal/orchestrator"
 )
 
 // ---------------------------------------------------------------------------
@@ -240,7 +240,7 @@ func (m Model) viewReview() string {
 	for _, t := range pending {
 		lines = append(lines, fmt.Sprintf("  → %s  %s",
 			yellow.Render(t),
-			dim.Render("llm-flow review "+t),
+			dim.Render("iudex review "+t),
 		))
 	}
 	return reviewPanel.Render(strings.Join(lines, "\n"))

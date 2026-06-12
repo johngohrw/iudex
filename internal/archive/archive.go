@@ -14,9 +14,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"llm-flow/internal/config"
-	"llm-flow/internal/events"
-	"llm-flow/internal/git"
+	"iudex/internal/config"
+	"iudex/internal/events"
+	"iudex/internal/git"
 )
 
 // Meta is written as meta.json in each archive directory.

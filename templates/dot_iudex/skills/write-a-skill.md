@@ -12,7 +12,7 @@ Tell Claude: "Use write-a-skill to create a skill for: [task/domain]"
    - What specific use cases should it handle?
    - Any reference materials or workflow steps to include?
 
-2. **Draft the skill** — write a `.md` file in `.llmflow/skills/`. If the content exceeds ~150 lines, split into a main file and a `<skill-name>-reference.md`.
+2. **Draft the skill** — write a `.md` file in `.iudex/skills/`. If the content exceeds ~150 lines, split into a main file and a `<skill-name>-reference.md`.
 
 3. **Review with user** — present the draft and ask:
    - Does this cover your use cases?
@@ -21,7 +21,7 @@ Tell Claude: "Use write-a-skill to create a skill for: [task/domain]"
 
 ## Skill file format
 
-Skills in this workspace are plain markdown files at `.llmflow/skills/<skill-name>.md`.
+Skills in this workspace are plain markdown files at `.iudex/skills/<skill-name>.md`.
 
 ```markdown
 # Skill: <skill-name>

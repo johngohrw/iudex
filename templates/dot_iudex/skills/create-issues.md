@@ -65,4 +65,4 @@ precisely (state machine, type shape); inline and note they came from a prototyp
 Context, links, constraints, or relevant domain terms from docs/glossary.md.
 ```
 
-After writing all files, run `llm-flow new-ticket <id> "<title>"` for each ticket so it is registered in `events.jsonl` with state `queued`. Do this in dependency order.
+After writing all files, run `iudex new-ticket <id> "<title>"` for each ticket so it is registered in `events.jsonl` with state `queued`. Do this in dependency order.

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"llm-flow/internal/config"
+	"iudex/internal/config"
 )
 
 // run executes a git command in cwd and returns trimmed stdout.
@@ -141,5 +141,5 @@ func ensureTaskGitignored(worktreePath string) {
 		return
 	}
 	defer f.Close()
-	fmt.Fprintf(f, "\n# llm-flow: task context (not part of implementation)\n%s\n", entry)
+	fmt.Fprintf(f, "\n# iudex: task context (not part of implementation)\n%s\n", entry)
 }

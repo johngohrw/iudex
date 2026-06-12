@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# build.sh — builds llm-flow binary
+# build.sh — builds iudex binary
 #
 # On systems with internet access (typical dev machine):
 #   ./build.sh
@@ -14,7 +14,7 @@
 #
 set -euo pipefail
 
-OUTPUT="${OUTPUT:-./llm-flow}"
+OUTPUT="${OUTPUT:-./iudex}"
 
 if [[ "${1:-}" == "--gopath" ]]; then
   # Build using system apt packages in GOPATH mode
@@ -25,10 +25,10 @@ if [[ "${1:-}" == "--gopath" ]]; then
   fi
   TMPWS=$(mktemp -d)
   trap "rm -rf $TMPWS" EXIT
-  mkdir -p "$TMPWS/src/llm-flow"
-  cp -r ./internal ./templates ./main.go "$TMPWS/src/llm-flow/"
+  mkdir -p "$TMPWS/src/iudex"
+  cp -r ./internal ./templates ./main.go "$TMPWS/src/iudex/"
   GOPATH="$TMPWS:$SYS_GOCODE" GO111MODULE=off \
-    go build -o "$OUTPUT" llm-flow
+    go build -o "$OUTPUT" iudex
 else
   # Standard module build (requires internet)
   GONOSUMDB='*' go build -o "$OUTPUT" .

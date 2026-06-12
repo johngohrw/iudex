@@ -23,7 +23,7 @@ import (
 	"os"
 	"time"
 
-	"llm-flow/internal/config"
+	"iudex/internal/config"
 )
 
 // Event represents a single state transition.
