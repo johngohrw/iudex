@@ -199,19 +199,43 @@ var startCmd = &cobra.Command{
 // ---------------------------------------------------------------------------
 
 var newTicketCmd = &cobra.Command{
-	Use:   "new-ticket <ticket-id> <title>",
+	Use:   "new-ticket <ticket-id> [title]",
 	Short: "Create a new ticket in the queue",
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ticketID, title := args[0], args[1]
+		ticketID := args[0]
+		title := ""
+		if len(args) == 2 {
+			title = args[1]
+		}
 		workspace, err := config.FindWorkspace("")
 		if err != nil {
 			return err
 		}
 
 		queueFile := filepath.Join(config.QueueDir(workspace), ticketID+".md")
+		rel, _ := filepath.Rel(workspace, queueFile)
+
 		if _, err := os.Stat(queueFile); err == nil {
-			return fmt.Errorf("%s already exists", queueFile)
+			// File already exists — reconcile instead of failing.
+			state, _ := events.GetTicketState(workspace, ticketID)
+			if state != "" {
+				fmt.Printf("ticket %s is already registered (state: %s).\n", ticketID, state)
+				return nil
+			}
+			// No event yet: register it using title from file if not supplied.
+			if title == "" {
+				title = ticketTitleFromFile(queueFile)
+			}
+			if _, err := events.Append(workspace, ticketID, "none", "queued", title); err != nil {
+				return err
+			}
+			fmt.Printf("✓ Found existing %s — registered in queue.\n  The orchestrator will claim it automatically.\n", rel)
+			return nil
+		}
+
+		if title == "" {
+			return fmt.Errorf("title is required when creating a new ticket")
 		}
 
 		deps, _ := cmd.Flags().GetString("deps")
@@ -253,10 +277,29 @@ _Priority: %d/5_%s
 		if _, err := events.Append(workspace, ticketID, "none", "queued", title); err != nil {
 			return err
 		}
-		rel, _ := filepath.Rel(workspace, queueFile)
 		fmt.Printf("✓ Created %s\n  Edit it, then the orchestrator will claim it automatically.\n", rel)
 		return nil
 	},
+}
+
+// ticketTitleFromFile reads the first line of a ticket markdown file and
+// returns the title by stripping the leading "# <id>: " prefix if present.
+func ticketTitleFromFile(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	if !scanner.Scan() {
+		return ""
+	}
+	line := strings.TrimPrefix(scanner.Text(), "# ")
+	// Strip "<ticket-id>: " prefix if the skill wrote "# ticket-00001: Title"
+	if idx := strings.Index(line, ": "); idx != -1 {
+		return strings.TrimSpace(line[idx+2:])
+	}
+	return strings.TrimSpace(line)
 }
 
 // ---------------------------------------------------------------------------
