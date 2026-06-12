@@ -28,7 +28,7 @@ Requires Go 1.22+. All dependencies are vendored in `vendor/`.
 
 ```
 iudex/
-├── main.go                    # Cobra CLI — all 10 commands
+├── main.go                    # Cobra CLI — all 11 commands
 ├── go.mod                     # module: iudex
 ├── vendor/                    # vendored deps (bubbletea, lipgloss, cobra, yaml.v3)
 ├── templates/                 # embedded via //go:embed all:templates
@@ -51,7 +51,7 @@ iudex/
 ```
 <workspace>/
 ├── .iudex/
-│   ├── config.yml             # max_agents, poll_interval_seconds, stall_timeout_minutes, agent_command, merge_strategy
+│   ├── config.yml             # max_agents, poll_interval_seconds, stall_timeout_minutes, agent_command, merge_strategy, impl_prompt, qa_prompt
 │   ├── impl.md                # system prompt injected into impl agent sessions
 │   ├── review.md              # system prompt injected into QA agent sessions
 │   └── skills/                # human-triggered markdown skills (not used by agents)
@@ -72,7 +72,7 @@ iudex/
 
 ```
 iudex new-ticket ticket-00001 "Add login page"
-  → creates queue/ticket-00001.md
+  → creates queue/ticket-00001.md (or reconciles a pre-written file)
   → appends {state: queued} to events.jsonl
 
 Orchestrator tick (every N seconds):
@@ -82,14 +82,18 @@ Orchestrator tick (every N seconds):
   → creates .task/log.md
   → removes queue/ticket-00001.md (atomic claim lock)
   → appends {state: in-progress}
-  → surfaces spawn command to TUI: "cd project/worktrees/ticket-00001 && claude"
+  → surfaces spawn command to TUI with baked-in prompt:
+      [impl] cd project/worktrees/ticket-00001 && claude "<impl_prompt>"
 
-Impl agent works, commits, appends {state: pending-review} to events.jsonl
+Impl agent works, commits, runs: cd ../../.. && iudex finish ticket-00001
+  → appends {state: pending-review}
 
-Orchestrator auto-commits any WIP on pending-review worktrees before QA
+Orchestrator auto-commits any WIP on pending-review worktrees, then surfaces:
+      [qa] cd project/worktrees/ticket-00001 && claude "<qa_prompt>"
 
-QA agent reads brief + log + diff, writes .task/review.md
-  → appends {state: pending-human-review} or {state: in-progress} (if blocking issues)
+QA agent reads brief + log + diff, writes .task/review.md, then runs:
+  iudex finish ticket-00001   # approve → pending-human-review
+  iudex revise ticket-00001   # request revision → in-progress
 
 Human runs:
   iudex review ticket-00001   # prints brief, log, diff, QA review
@@ -114,17 +118,18 @@ pending-human-review → human-manual → pending-review (via finish)
 
 ---
 
-## CLI commands (all 10)
+## CLI commands (all 11)
 
 | Command | Description |
 |---------|-------------|
 | `iudex init <dir>` | Scaffold workspace from embedded templates; initializes git repo if none exists |
 | `iudex start` | Launch Bubble Tea TUI + start orchestrator goroutine |
-| `iudex new-ticket <id> <title> [--deps <ids>] [--priority 1-5]` | Create ticket markdown in queue/ |
+| `iudex new-ticket <id> [title] [--deps <ids>] [--priority 1-5]` | Create ticket in queue/; reconciles pre-written files |
 | `iudex review <id>` | Print brief, log, diff, QA review; show next actions |
 | `iudex merge <id>` | Squash-merge to main, archive, remove worktree |
 | `iudex reject <id> [--reason]` | Archive as _rejected, return brief to queue |
-| `iudex finish <id>` | Commit WIP, transition to pending-review (hand off to QA) |
+| `iudex finish <id>` | State-aware handoff: impl done → pending-review; QA approve → pending-human-review |
+| `iudex revise <id>` | QA requests revision: pending-review → in-progress |
 | `iudex manual <id>` | Enter human-manual state; prints cd path |
 | `iudex status` | Print all ticket states (no TUI) |
 | `iudex archive-list` | List archived tickets with diff/review presence |
@@ -137,7 +142,7 @@ pending-human-review → human-manual → pending-review (via finish)
 - `FindWorkspace(dir)` — walks up from cwd looking for `.iudex/config.yml`
 - `Load(workspace)` — parses `.iudex/config.yml` into `Config` struct
 - Path helpers: `QueueDir`, `ArchiveDir`, `WorktreesDir`, `MainWorktree`, `TaskDir`, `TaskWorktree`, `EventsFile`
-- `Config` fields: `MaxAgents`, `PollInterval` (mapped from `poll_interval_seconds`), `StallTimeout` (mapped from `stall_timeout_minutes`), `AgentCommand`, `MergeStrategy`
+- `Config` fields: `MaxAgents`, `PollInterval` (mapped from `poll_interval_seconds`), `StallTimeout` (mapped from `stall_timeout_minutes`), `AgentCommand`, `MergeStrategy`, `ImplPrompt`, `QAPrompt`
 
 ### `internal/events`
 - `Append(workspace, ticketID, fromState, toState, note)` — appends one JSON line with RFC4122 UUIDv4 + RFC3339 timestamp; returns the written `Event`
@@ -167,7 +172,8 @@ pending-human-review → human-manual → pending-review (via finish)
 - `Updates()` returns read-only channel; TUI blocks on it between refreshes
 - `GetState()` returns snapshot of `Alerts []string` and `SpawnCommands []SpawnCommand`
 - `DismissAlerts()`, `DismissSpawnCommand(ticket)`
-- On each tick: (1) claim queued tickets up to `max_agents`, (2) check stalls, (3) auto-commit WIP on `pending-review` worktrees
+- `SpawnCommand` struct has `Ticket`, `Command`, `Role` (`"impl"` or `"qa"`) — TUI labels them with color-coded role badges
+- On each tick: (1) claim queued tickets up to `max_agents`, (2) check stalls, (3) auto-commit WIP on `pending-review` worktrees, (4) surface QA spawn commands for `pending-review` tickets
 
 ### `internal/tui`
 - Bubble Tea `Model` with `Init / Update / View`
@@ -214,6 +220,7 @@ The core pipeline is functional. Known gaps before production hardening:
 - Error handling in `merge` and `reject` for edge cases (worktree already removed, branch already merged)
 - `feedback` command (referenced in PRD OQ2, not yet implemented)
 - Integration tests against real git repos (all git functions are implemented but untested end-to-end)
+- Ticket dependency enforcement (the markdown format has a `## Dependencies` section, but the orchestrator ignores it)
 
 ---
 
@@ -223,5 +230,4 @@ The core pipeline is functional. Known gaps before production hardening:
 - No task bundling or AI-driven ticket assignment
 - No remote/multi-machine coordination
 - No web dashboard (deferred)
-- No ticket dependency enforcement (the markdown format has a `## Dependencies` section, but the orchestrator ignores it)
 - `improve-arch` skill outputs reports only, never writes code
