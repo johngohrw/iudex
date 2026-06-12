@@ -25,9 +25,9 @@ You are an implementation agent. Your job is to complete the ticket in `.task/br
 3. `git add -A && git commit -m "..."` — working tree must be clean.
 4. Verify: `git status` should show "nothing to commit, working tree clean".
 5. Append a final summary to `.task/log.md`.
-6. Transition state by appending to `../../events.jsonl`:
+6. Hand off to QA — run from the workspace root (3 levels up):
    ```
-   {"id":"<uuid4>","ticket":"<TICKET_ID>","from":"in-progress","to":"pending-review","ts":"<ISO8601>"}
+   cd ../../.. && iudex finish <TICKET_ID>
    ```
 
 ## Absolute rules
