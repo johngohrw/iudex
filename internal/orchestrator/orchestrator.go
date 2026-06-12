@@ -130,22 +130,10 @@ func (o *Orchestrator) tick() {
 		return
 	}
 
-	// Prune stale spawn commands and alerts.
+	// Prune stale alerts for tickets no longer in an active state.
 	o.mu.Lock()
-	live := o.SpawnCommands[:0]
-	for _, sc := range o.SpawnCommands {
-		state := tickets[sc.Ticket]
-		keep := (sc.Role == "impl" && state == "in-progress") ||
-			(sc.Role == "qa" && state == "pending-review")
-		if keep {
-			live = append(live, sc)
-		}
-	}
-	o.SpawnCommands = live
-
 	liveAlerts := o.Alerts[:0]
 	for _, a := range o.Alerts {
-		// Keep alerts not tied to a specific ticket, or for tickets still active.
 		ticketID := alertTicket(a)
 		if ticketID == "" || events.ActiveStates[tickets[ticketID]] {
 			liveAlerts = append(liveAlerts, a)
@@ -224,29 +212,30 @@ func (o *Orchestrator) tick() {
 		}
 	}
 
-	// Surface QA spawn commands for pending-review tickets.
+	// Rebuild spawn commands from current ticket states.
+	// This is derived on every tick so commands always reflect reality —
+	// tickets re-entering in-progress (via revise) are covered automatically.
+	var spawns []SpawnCommand
 	for ticket, state := range tickets {
-		if state != "pending-review" {
-			continue
+		switch state {
+		case "in-progress":
+			spawns = append(spawns, SpawnCommand{
+				Ticket:  ticket,
+				Command: spawnCmd(ticket, o.cfg.AgentCommand, o.cfg.ImplPrompt),
+				Role:    "impl",
+			})
+		case "pending-review":
+			spawns = append(spawns, SpawnCommand{
+				Ticket:  ticket,
+				Command: spawnCmd(ticket, o.cfg.AgentCommand, o.cfg.QAPrompt),
+				Role:    "qa",
+			})
 		}
-		o.mu.Lock()
-		already := false
-		for _, sc := range o.SpawnCommands {
-			if sc.Ticket == ticket && sc.Role == "qa" {
-				already = true
-				break
-			}
-		}
-		o.mu.Unlock()
-		if already {
-			continue
-		}
-		cmd := spawnCmd(ticket, o.cfg.AgentCommand, o.cfg.QAPrompt)
-		o.mu.Lock()
-		o.SpawnCommands = append(o.SpawnCommands, SpawnCommand{Ticket: ticket, Command: cmd, Role: "qa"})
-		o.mu.Unlock()
-		o.notify()
 	}
+	o.mu.Lock()
+	o.SpawnCommands = spawns
+	o.mu.Unlock()
+	o.notify()
 }
 
 func (o *Orchestrator) claimTicket(ticket, ticketFile string) error {
@@ -282,11 +271,6 @@ func (o *Orchestrator) claimTicket(ticket, ticketFile string) error {
 	if _, err := events.Append(o.workspace, ticket, "queued", "in-progress", ""); err != nil {
 		return err
 	}
-
-	cmd := spawnCmd(ticket, o.cfg.AgentCommand, o.cfg.ImplPrompt)
-	o.mu.Lock()
-	o.SpawnCommands = append(o.SpawnCommands, SpawnCommand{Ticket: ticket, Command: cmd, Role: "impl"})
-	o.mu.Unlock()
 
 	return nil
 }
