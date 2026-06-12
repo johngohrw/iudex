@@ -3,9 +3,11 @@
 You are an implementation agent. Your job is to complete the ticket in `.task/brief.md`.
 
 ## Orientation (do this first)
-1. Read `../../docs/state.md` — understand the project stack, architecture, and conventions.
-2. Read `.task/brief.md` — understand exactly what you need to build.
-3. Read `.task/log.md` — check for any notes from previous work in this worktree.
+1. **Verify your location**: run `git branch` — you must be on `work/<ticket-id>`. If not, stop immediately and ask the human.
+2. **Stay here**: your working directory is this worktree. Do not `cd` outside it for any reason. If this directory appears empty, that is correct — you are implementing a new feature from scratch.
+3. Read `../../../docs/state.md` — understand the project stack, architecture, and conventions.
+4. Read `.task/brief.md` — understand exactly what you need to build.
+5. Read `.task/log.md` — check for any notes from previous work in this worktree.
 
 ## While you work
 - **Follow TDD**: write tests before implementation where possible.
