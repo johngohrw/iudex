@@ -39,6 +39,7 @@ iudex/
     ├── events/events.go       # append-only JSONL state machine
     ├── git/git.go             # all git ops via exec.Command
     ├── archive/archive.go     # copy .task/ + diff.patch + meta.json before cleanup
+    ├── queue/deps.go          # ParseDependencies + DepsReady: read ## Dependencies from ticket markdown
     ├── orchestrator/          # background goroutine: claim tickets, stall detection
     │   └── orchestrator.go
     └── tui/tui.go             # Bubble Tea TUI: 5 panels, channel-driven refresh
@@ -97,7 +98,7 @@ QA agent reads brief + log + diff, writes .task/review.md, then runs:
 
 Human runs:
   iudex review ticket-00001   # prints brief, log, diff, QA review
-  iudex merge ticket-00001    # squash-merges → main, archives, removes worktree
+  iudex merge ticket-00001    # merges (--no-ff) → main, archives, removes worktree
   iudex reject ticket-00001   # archives as _rejected/, returns brief to queue/
   iudex manual ticket-00001   # human takes over; iudex finish when done
 ```
@@ -173,7 +174,7 @@ pending-human-review → human-manual → pending-review (via finish)
 - `GetState()` returns snapshot of `Alerts []string` and `SpawnCommands []SpawnCommand`
 - `DismissAlerts()`, `DismissSpawnCommand(ticket)`
 - `SpawnCommand` struct has `Ticket`, `Command`, `Role` (`"impl"` or `"qa"`) — TUI labels them with color-coded role badges
-- On each tick: (1) claim queued tickets up to `max_agents`, (2) check stalls, (3) auto-commit WIP on `pending-review` worktrees, (4) surface QA spawn commands for `pending-review` tickets
+- On each tick: (1) claim queued tickets up to `max_agents` — skipping any whose `## Dependencies` are not yet `"done"`, (2) check stalls, (3) auto-commit WIP on `pending-review` worktrees, (4) surface QA spawn commands for `pending-review` tickets
 
 ### `internal/tui`
 - Bubble Tea `Model` with `Init / Update / View`
@@ -193,7 +194,7 @@ pending-human-review → human-manual → pending-review (via finish)
 | QA agents are read-only | Enforces clean separation between impl and review phases |
 | Stall detection via `git log --since` | No heartbeat files to manage or clean up |
 | Human approves all merges | Nothing reaches main without explicit `iudex merge` |
-| Squash-merge only | Clean linear history on main |
+| `--no-ff` merge | Preserves branch history while keeping a clear merge commit on main |
 | All git ops via `exec.Command` | No libgit2 dependency; works wherever `git` is installed |
 | `//go:embed all:templates` | Config, rules, skills ship inside the binary |
 | Orchestrator surfaces spawn commands, doesn't run them | Human launches agent in a terminal; tool is agent-agnostic |
@@ -220,7 +221,6 @@ The core pipeline is functional. Known gaps before production hardening:
 - Error handling in `merge` and `reject` for edge cases (worktree already removed, branch already merged)
 - `feedback` command (referenced in PRD OQ2, not yet implemented)
 - Integration tests against real git repos (all git functions are implemented but untested end-to-end)
-- Ticket dependency enforcement (the markdown format has a `## Dependencies` section, but the orchestrator ignores it)
 
 ---
 
