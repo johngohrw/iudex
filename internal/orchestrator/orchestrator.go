@@ -25,6 +25,7 @@ import (
 	"iudex/internal/config"
 	"iudex/internal/events"
 	"iudex/internal/git"
+	"iudex/internal/queue"
 )
 
 // SpawnCommand is a ready-to-run agent command surfaced to the TUI.
@@ -159,6 +160,14 @@ func (o *Orchestrator) tick() {
 		ticket := strings.TrimSuffix(filepath.Base(ticketFile), ".md")
 		state := tickets[ticket]
 		if state != "" && state != "queued" && state != "rejected" {
+			continue
+		}
+		ready, err := queue.DepsReady(ticketFile, tickets)
+		if err != nil {
+			o.alert(fmt.Sprintf("deps check %s: %v", ticket, err))
+			continue
+		}
+		if !ready {
 			continue
 		}
 		if err := o.claimTicket(ticket, ticketFile); err != nil {

@@ -109,16 +109,13 @@ func WIPCommit(workspace, ticket string) error {
 	return err
 }
 
-// SquashMerge squash-merges the ticket branch into main.
+// SquashMerge merges the ticket branch into main.
 // Returns the resulting commit hash.
 func SquashMerge(workspace, ticket string) (string, error) {
 	main := config.MainWorktree(workspace)
 	branch := "work/" + ticket
-	if _, err := run(main, "merge", "--squash", branch); err != nil {
-		return "", fmt.Errorf("squash merge: %w", err)
-	}
-	if _, err := run(main, "commit", "-m", fmt.Sprintf("feat: complete %s", ticket)); err != nil {
-		return "", fmt.Errorf("commit after squash: %w", err)
+	if _, err := run(main, "merge", "--no-ff", "-m", fmt.Sprintf("feat: complete %s", ticket), branch); err != nil {
+		return "", fmt.Errorf("merge: %w", err)
 	}
 	return run(main, "rev-parse", "HEAD")
 }

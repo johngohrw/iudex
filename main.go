@@ -351,7 +351,7 @@ var reviewCmd = &cobra.Command{
 
 var mergeCmd = &cobra.Command{
 	Use:   "merge <ticket-id>",
-	Short: "Approve and squash-merge a ticket to main",
+	Short: "Approve and merge a ticket to main",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ticketID := args[0]
@@ -379,7 +379,7 @@ var mergeCmd = &cobra.Command{
 			}
 		}
 
-		fmt.Printf("  Squash-merging work/%s → main…\n", ticketID)
+		fmt.Printf("  Merging work/%s → main…\n", ticketID)
 		commitHash, err := git.SquashMerge(workspace, ticketID)
 		if err != nil {
 			return err
