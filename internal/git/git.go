@@ -26,26 +26,46 @@ func run(dir string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// CurrentBranch returns the checked-out branch name of the repo at dir.
-//
-// TODO(scaffold): implement (git rev-parse --abbrev-ref HEAD).
+// IsRepo reports whether dir is inside a git work tree.
+func IsRepo(dir string) bool {
+	out, err := run(dir, "rev-parse", "--is-inside-work-tree")
+	return err == nil && out == "true"
+}
+
+// Init runs `git init` in dir.
+func Init(dir string) error {
+	_, err := run(dir, "init")
+	return err
+}
+
+// CurrentBranch returns the checked-out branch name, including an unborn branch
+// (a fresh repo with no commits yet). It fails on a detached HEAD.
 func CurrentBranch(dir string) (string, error) {
-	return "", errNotImplemented
+	return run(dir, "symbolic-ref", "--short", "HEAD")
 }
 
-// HasCommits reports whether the repo at dir has at least one commit.
-//
-// TODO(scaffold): implement (git rev-parse --verify HEAD).
+// HasCommits reports whether HEAD resolves to a commit. A repo with no commits
+// yet returns false, nil.
 func HasCommits(dir string) (bool, error) {
-	return false, errNotImplemented
+	if _, err := run(dir, "rev-parse", "--verify", "HEAD"); err != nil {
+		return false, nil
+	}
+	return true, nil
 }
 
-// InitRepo runs `git init` and creates an initial empty commit. Used by
-// `iudex init` only when the directory has no repo/commits yet.
-//
-// TODO(scaffold): implement.
-func InitRepo(dir string) error {
-	return errNotImplemented
+// CommitAll stages everything and commits with message. If there is nothing to
+// stage (e.g. a blank directory), it falls back to an empty commit so that
+// worktrees later have a base commit to branch from.
+func CommitAll(dir, message string) error {
+	if _, err := run(dir, "add", "-A"); err != nil {
+		return err
+	}
+	if _, err := run(dir, "commit", "-m", message); err != nil {
+		if _, err2 := run(dir, "commit", "--allow-empty", "-m", message); err2 != nil {
+			return err2
+		}
+	}
+	return nil
 }
 
 // IsClean reports whether the working tree at dir has no uncommitted changes.

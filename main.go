@@ -8,7 +8,10 @@ import (
 	"iudex/internal/cmd"
 )
 
-//go:embed all:templates
+// Embed without the "all:" prefix so dot-prefixed files (e.g. macOS .DS_Store)
+// are never bundled into the workspace scaffold.
+//
+//go:embed templates
 var templatesFS embed.FS
 
 func main() {
