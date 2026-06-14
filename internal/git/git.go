@@ -5,7 +5,9 @@ package git
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -75,11 +77,51 @@ func IsClean(dir string) (bool, error) {
 	return false, errNotImplemented
 }
 
-// CreateWorktree adds a worktree at dest on a new branch off base.
-//
-// TODO(scaffold): implement (git worktree add -b <branch> <dest> <base>).
+// CreateWorktree adds a worktree at dest on a new branch off base, run from the
+// main worktree at repoRoot.
 func CreateWorktree(repoRoot, dest, branch, base string) error {
-	return errNotImplemented
+	if _, err := run(repoRoot, "worktree", "add", "-b", branch, dest, base); err != nil {
+		return fmt.Errorf("create worktree: %w", err)
+	}
+	return nil
+}
+
+// EnsureExclude appends pattern to the repository's shared exclude file
+// (info/exclude in the common git dir) if not already present. The pattern is
+// then ignored in every worktree without touching any tracked .gitignore.
+func EnsureExclude(repoRoot, pattern string) error {
+	common, err := run(repoRoot, "rev-parse", "--git-common-dir")
+	if err != nil {
+		return err
+	}
+	if !filepath.IsAbs(common) {
+		common = filepath.Join(repoRoot, common)
+	}
+	infoDir := filepath.Join(common, "info")
+	if err := os.MkdirAll(infoDir, 0o755); err != nil {
+		return err
+	}
+	exclude := filepath.Join(infoDir, "exclude")
+	data, err := os.ReadFile(exclude)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) == pattern {
+			return nil
+		}
+	}
+	f, err := os.OpenFile(exclude, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	prefix := ""
+	if len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
+		prefix = "\n"
+	}
+	_, err = fmt.Fprintf(f, "%s%s\n", prefix, pattern)
+	return err
 }
 
 // RemoveWorktree force-removes a worktree and deletes its branch (best effort).
