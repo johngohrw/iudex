@@ -70,11 +70,14 @@ func CommitAll(dir, message string) error {
 	return nil
 }
 
-// IsClean reports whether the working tree at dir has no uncommitted changes.
-//
-// TODO(scaffold): implement (git status --porcelain).
+// IsClean reports whether the working tree at dir has no uncommitted changes
+// (ignored paths such as .task/ do not count).
 func IsClean(dir string) (bool, error) {
-	return false, errNotImplemented
+	out, err := run(dir, "status", "--porcelain")
+	if err != nil {
+		return false, err
+	}
+	return out == "", nil
 }
 
 // CreateWorktree adds a worktree at dest on a new branch off base, run from the
@@ -131,11 +134,14 @@ func RemoveWorktree(repoRoot, dest, branch string) error {
 	return errNotImplemented
 }
 
-// WIPCommit stages everything in dir and commits with message (checkpoint).
-//
-// TODO(scaffold): implement.
+// WIPCommit stages everything in dir and commits with message (a checkpoint).
+// Ignored paths (.task/) are not staged.
 func WIPCommit(dir, message string) error {
-	return errNotImplemented
+	if _, err := run(dir, "add", "-A"); err != nil {
+		return err
+	}
+	_, err := run(dir, "commit", "-m", message)
+	return err
 }
 
 // Diff returns the diff of the worktree's branch against base, excluding .task/.

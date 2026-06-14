@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"iudex/internal/events"
@@ -38,6 +39,24 @@ func loadContext() (*wsContext, error) {
 		return nil, err
 	}
 	return &wsContext{Root: root, Config: cfg, Events: evs, Statuses: statuses}, nil
+}
+
+// resolveTicket returns the explicit ticket id from args, or infers it from the
+// current directory when inside a ticket worktree. Used by worktree-scoped
+// commands (finish, qa, spawn).
+func resolveTicket(root string, args []string) (string, error) {
+	if len(args) == 1 {
+		return args[0], nil
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	id, ok := workspace.TicketFromCwd(root, cwd)
+	if !ok {
+		return "", fmt.Errorf("no ticket id given and not inside a ticket worktree")
+	}
+	return id, nil
 }
 
 // spawnCommand builds a ready-to-paste agent command that drops the user into a

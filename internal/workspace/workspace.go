@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -113,4 +114,18 @@ func TaskDir(root, ticket string) string {
 // ArchiveTicketDir returns the archive directory for a ticket.
 func ArchiveTicketDir(root, ticket string) string {
 	return filepath.Join(ArchiveDir(root), ticket)
+}
+
+// TicketFromCwd resolves the ticket whose worktree contains cwd, returning the
+// ticket id and true when cwd is inside <root>/.iudex/worktrees/<id>/…
+func TicketFromCwd(root, cwd string) (string, bool) {
+	rel, err := filepath.Rel(WorktreesDir(root), cwd)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	id := strings.SplitN(rel, string(filepath.Separator), 2)[0]
+	if id == "" {
+		return "", false
+	}
+	return id, true
 }
