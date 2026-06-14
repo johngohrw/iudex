@@ -2,232 +2,215 @@
 
 ## What this is
 
-iudex is a Go CLI tool that orchestrates parallel AI coding agents (Claude Code, Aider, etc.) across git worktrees. It manages a queue → implement → QA → human review → merge pipeline, keeping every stage file-based and git-native with no runtime dependencies beyond `git`.
+iudex is a Go CLI tool that orchestrates AI coding agents (Claude Code, Aider, etc.) across git worktrees. It drives every ticket through a **queue → implement → QA → human-review → merge** pipeline, keeping all state file-based and git-native with no runtime dependency beyond `git`.
 
-It is a Go rewrite of a Python prototype. The workspace file layout, ticket pipeline, and all design decisions are **locked in** — do not change them. Add features only if explicitly instructed.
+**There is no running instance.** No daemon, no background loop, no ticks, no TUI, no stall detection. The "orchestrator" is just a set of rules: every state transition is an explicit command a human (or an agent acting on a ticket) runs. iudex prints ready-to-paste agent spawn commands but never launches an agent itself.
+
+> This is a ground-up rewrite. An earlier version was a daemon + Bubble Tea TUI with a polling goroutine; that design is **superseded**. If you find references to an orchestrator goroutine, ticks, `max_agents`, priority, or `rejected`/`human-manual` states, they are from the old design.
+
+The design is specified in `.scratch/iudex-prd/PRD.md`.
 
 ---
 
 ## Build
 
 ```bash
-go mod tidy && go build -o iudex .
+go build -o iudex .
 
-# Cross-compile for Raspberry Pi 3B
+# Cross-compile (e.g. Raspberry Pi)
 GOOS=linux GOARCH=arm go build -o iudex-arm .
-
-# Offline / restricted build
-./build.sh --gopath
 ```
 
-Requires Go 1.22+. All dependencies are vendored in `vendor/`.
+Requires Go 1.22+. Dependencies are just `github.com/spf13/cobra` and `gopkg.in/yaml.v3` (+ their transitive deps). `vendor/` is gitignored; a fresh clone fetches modules normally.
+
+> `build.sh --gopath` (offline apt build) is **stale** — it still references the removed `bubbletea`/`lipgloss` packages and needs updating before use.
 
 ---
 
-## Project layout
+## Mental model
 
-```
-iudex/
-├── main.go                    # Cobra CLI — all 11 commands
-├── go.mod                     # module: iudex
-├── vendor/                    # vendored deps (bubbletea, lipgloss, cobra, yaml.v3)
-├── templates/                 # embedded via //go:embed all:templates
-│   ├── dot_iudex/           # → .iudex/ on init (config.yml, impl.md, review.md, skills/)
-│   └── docs/state.md
-└── internal/
-    ├── config/config.go       # workspace discovery, path helpers, YAML config
-    ├── events/events.go       # append-only JSONL state machine
-    ├── git/git.go             # all git ops via exec.Command
-    ├── archive/archive.go     # copy .task/ + diff.patch + meta.json before cleanup
-    ├── queue/deps.go          # ParseDependencies + DepsReady: read ## Dependencies from ticket markdown
-    ├── orchestrator/          # background goroutine: claim tickets, stall detection
-    │   └── orchestrator.go
-    └── tui/tui.go             # Bubble Tea TUI: 5 panels, channel-driven refresh
-```
+- **`events.jsonl` is the single source of truth.** Ticket state, dependencies, and the QA-reject counter are all *derived* by replaying it. Nothing is stored anywhere else.
+- **Nothing advances on its own.** A ticket only changes state when someone runs a command.
+- **In-place workspace.** iudex runs inside your project, like `git`. Everything it owns lives under a single gitignored `.iudex/` directory; the existing repo is the canonical `main` worktree.
+- **iudex is agent-agnostic.** It computes spawn commands from config + prompt templates and prints them; the human launches the agent.
 
 ---
 
 ## Workspace layout (what `iudex init` creates)
 
 ```
-<workspace>/
-├── .iudex/
-│   ├── config.yml             # max_agents, poll_interval_seconds, stall_timeout_minutes, agent_command, merge_strategy, impl_prompt, qa_prompt
-│   ├── impl.md                # system prompt injected into impl agent sessions
-│   ├── review.md              # system prompt injected into QA agent sessions
-│   └── skills/                # human-triggered markdown skills (not used by agents)
-├── docs/state.md              # human-maintained project state (updated after each merge)
-├── queue/                     # unclaimed tickets: ticket-NNNNN.md files
-├── archive/                   # permanent record: archive/ticket-NNNNN/ per completed ticket
-├── events.jsonl               # append-only JSONL — sole source of truth for ticket state
-└── project/
-    └── worktrees/
-        ├── main/              # canonical branch (cloned repo)
-        └── ticket-NNNNN/      # one git worktree per active ticket
-            └── .task/         # gitignored; brief.md, log.md, review.md
+<your-project>/                 # existing git repo = canonical "main" worktree
+├── .iudex/                      # all iudex state (gitignored as a whole)
+│   ├── config.yml               # main_branch, max_active, qa_reject_limit, agent_command,
+│   │                            #   merge_strategy, merge_message_template, branch_prefix
+│   ├── prompts/
+│   │   ├── impl.md              # injected into impl spawn commands
+│   │   └── review.md            # injected into QA spawn commands
+│   ├── queue/                   # author tickets here: t<N>.md
+│   ├── archive/                 # archive/t<N>/ per done/removed ticket
+│   ├── events.jsonl             # append-only source of truth
+│   └── worktrees/
+│       └── t<N>/                # one git worktree per active ticket (branch <branch_prefix>t<N>)
+│           └── .task/           # brief.md, log.md, review.md (ignored via the repo's shared exclude)
+└── …                            # your real project files, on main_branch
 ```
+
+`.task/` is kept out of git via the repository's shared exclude (`$GIT_DIR/info/exclude`), so it never pollutes a tracked `.gitignore` and never leaks into a merge.
 
 ---
 
 ## Ticket lifecycle
 
 ```
-iudex new-ticket ticket-00001 "Add login page"
-  → creates queue/ticket-00001.md (or reconciles a pre-written file)
-  → appends {state: queued} to events.jsonl
+iudex next-ticket-id            # prints N (highest ever + 1); author .iudex/queue/tN.md yourself
+iudex queue tN --deps t1,t2     # register tN + its blocking deps in the event log
 
-Orchestrator tick (every N seconds):
-  → claims queue/ticket-00001.md
-  → git worktree add project/worktrees/ticket-00001 -b work/ticket-00001
-  → moves brief → .task/brief.md
-  → creates .task/log.md
-  → removes queue/ticket-00001.md (atomic claim lock)
-  → appends {state: in-progress}
-  → surfaces spawn command to TUI with baked-in prompt:
-      [impl] cd project/worktrees/ticket-00001 && claude "<impl_prompt>"
+iudex activate tN               # queued → active: deps must all be done, under max_active;
+                                #   creates worktree off main_branch, moves the brief into
+                                #   .task/brief.md, seeds .task/log.md, prints the impl spawn cmd
 
-Impl agent works, commits, runs: cd ../../.. && iudex finish ticket-00001
-  → appends {state: pending-review}
+# impl agent (or a human) works in the worktree, commits, then:
+iudex finish                    # active → pending-qa (ticket inferred from the worktree cwd);
+                                #   auto-commits a checkpoint if dirty; prints the QA spawn cmd
 
-Orchestrator auto-commits any WIP on pending-review worktrees, then surfaces:
-      [qa] cd project/worktrees/ticket-00001 && claude "<qa_prompt>"
+# QA agent reviews, writes .task/review.md, then:
+iudex qa approve                # pending-qa → pending-human-qa
+iudex qa reject                 # pending-qa → active (or → failed at qa_reject_limit)
 
-QA agent reads brief + log + diff, writes .task/review.md, then runs:
-  iudex finish ticket-00001   # approve → pending-human-review
-  iudex revise ticket-00001   # request revision → in-progress
+# human:
+iudex review tN                 # print brief, log, diff vs main, review, state, next actions
+iudex human-qa approve tN       # merge to main, archive, remove worktree → done
+iudex human-qa reject tN --reason "…"   # → active; reason appended to .task/review.md
+iudex remove tN                 # abandon from any non-terminal state → removed
 
-Human runs:
-  iudex review ticket-00001   # prints brief, log, diff, QA review
-  iudex merge ticket-00001    # merges (--no-ff) → main, archives, removes worktree
-  iudex reject ticket-00001   # archives as _rejected/, returns brief to queue/
-  iudex manual ticket-00001   # human takes over; iudex finish when done
+iudex retry tN                  # failed → active, reset the QA-reject counter
 ```
 
-**State machine:**
-```
-queued → in-progress → pending-review → pending-human-review → done
-                     ↑               ↓
-                     └─ in-progress ←┘  (QA requests revision)
-                                      ↓
-                                   rejected
+### State machine
 
-pending-human-review → human-manual → pending-review (via finish)
-                                    → rejected
+```
+(none) --queue--------> queued
+queued --activate-----> active            [all deps done, under max_active]
+active --finish-------> pending-qa         [auto-commits if dirty]
+pending-qa --qa approve----------> pending-human-qa
+pending-qa --qa reject-----------> active  [count < qa_reject_limit]
+pending-qa --qa reject-----------> failed  [count == qa_reject_limit]
+pending-human-qa --human-qa approve--> done    [merge + archive + remove worktree]
+pending-human-qa --human-qa reject---> active  [--reason appended to review.md]
+failed --retry-------------------> active  [counter reset]
+<any non-terminal> --remove------> removed [archive + remove worktree if present]
 ```
 
-**Critical invariant:** `events.jsonl` is the sole source of truth for ticket state. Ticket `.md` files carry content (brief, log, review), never status. State is always derived by replaying events.
+**Seven states:** `queued`, `active`, `pending-qa`, `pending-human-qa`, `done`, `failed`, `removed`. Terminal: `done`, `removed`.
+
+**QA-reject counter:** increments on `qa reject`, resets on `retry`; `human-qa reject` never counts or resets it. `qa_reject_limit <= 0` means unlimited.
 
 ---
 
-## CLI commands (all 11)
+## CLI commands (12)
 
 | Command | Description |
 |---------|-------------|
-| `iudex init <dir>` | Scaffold workspace from embedded templates; initializes git repo if none exists |
-| `iudex start` | Launch Bubble Tea TUI + start orchestrator goroutine |
-| `iudex new-ticket <id> [title] [--deps <ids>] [--priority 1-5]` | Create ticket in queue/; reconciles pre-written files |
-| `iudex review <id>` | Print brief, log, diff, QA review; show next actions |
-| `iudex merge <id>` | Squash-merge to main, archive, remove worktree |
-| `iudex reject <id> [--reason]` | Archive as _rejected, return brief to queue |
-| `iudex finish <id>` | State-aware handoff: impl done → pending-review; QA approve → pending-human-review |
-| `iudex revise <id>` | QA requests revision: pending-review → in-progress |
-| `iudex manual <id>` | Enter human-manual state; prints cd path |
-| `iudex status` | Print all ticket states (no TUI) |
-| `iudex archive-list` | List archived tickets with diff/review presence |
+| `iudex init` | Scaffold the current directory into a workspace (git init + initial commit only if no history; records the current branch as `main_branch`; gitignores `.iudex/`) |
+| `iudex next-ticket-id` | Print the next ticket id `N` (highest ever + 1) and nothing else |
+| `iudex queue <id> [--deps <ids>]` | Register a queued ticket and its deps; rejects reused ids and deps that aren't already registered (or are removed/failed) |
+| `iudex activate <id>` | queued → active: create worktree + `.task/`, print impl spawn command |
+| `iudex finish [id]` | active → pending-qa; auto-commit if dirty; print QA spawn command (id inferred from cwd) |
+| `iudex spawn [id]` | Print the spawn command for the ticket's current state (impl/QA); never launches |
+| `iudex qa approve\|reject [id]` | Agent QA gate (id inferred from cwd) |
+| `iudex human-qa approve\|reject <id>` | Human gate: approve merges/archives/removes; reject (`--reason`) returns to active |
+| `iudex retry <id>` | failed → active, reset the QA-reject counter |
+| `iudex remove <id>` | Abandon from any non-terminal state → removed |
+| `iudex review <id>` | Read-only: print brief, log, diff, review, state, next actions |
+| `iudex status [--all]` | Tickets grouped by state; queued annotated ready/blocked; done/removed hidden unless `--all` |
+
+Worktree-scoped commands (`finish`, `qa`, `spawn`) infer the ticket from the current directory when run inside a worktree; an explicit id always overrides.
 
 ---
 
-## Internal packages
+## Source layout
 
-### `internal/config`
-- `FindWorkspace(dir)` — walks up from cwd looking for `.iudex/config.yml`
-- `Load(workspace)` — parses `.iudex/config.yml` into `Config` struct
-- Path helpers: `QueueDir`, `ArchiveDir`, `WorktreesDir`, `MainWorktree`, `TaskDir`, `TaskWorktree`, `EventsFile`
-- `Config` fields: `MaxAgents`, `PollInterval` (mapped from `poll_interval_seconds`), `StallTimeout` (mapped from `stall_timeout_minutes`), `AgentCommand`, `MergeStrategy`, `ImplPrompt`, `QAPrompt`
+```
+iudex/
+├── main.go                    # thin entrypoint; //go:embed templates → cmd.Execute(fs)
+├── main_test.go               # CLI-seam tests (build binary, hermetic git config, drive the pipeline)
+├── go.mod                     # module: iudex; deps: cobra, yaml.v3
+├── templates/dot_iudex/       # embedded scaffold (config.yml, prompts/) → .iudex/ on init
+└── internal/
+    ├── workspace/             # discovery (walk up for .iudex/config.yml), Config, path helpers, TicketFromCwd
+    ├── events/                # append-only events.jsonl: Event, Append (O_APPEND), ReadAll
+    ├── ticket/                # state machine: States/Triggers, Status, Derive (replay), DepsReady, MaxID, ParseID
+    ├── git/                   # all git ops via exec.Command
+    ├── archive/               # copy .task/ + diff.patch + meta.json into archive/<id>/
+    └── cmd/                    # cobra command tree, one file per command; common.go = shared helpers
+```
 
-### `internal/events`
-- `Append(workspace, ticketID, fromState, toState, note)` — appends one JSON line with RFC4122 UUIDv4 + RFC3339 timestamp; returns the written `Event`
-- `GetTicketState(workspace, ticketID)` — replays events, returns current state
-- `GetAllTickets(workspace)` — returns `map[ticketID]currentState`
-- `GetTicketEvents(workspace, ticketID)` — returns full ordered event history for one ticket
-- `ActiveStates` — `map[string]bool` of states where a worktree is live (`in-progress`, `pending-review`, `human-manual`)
-- Uses `O_APPEND|O_WRONLY|O_CREATE` for concurrent-safe writes
+### Internal packages
 
-### `internal/git`
-- `CreateWorktree(workspace, ticket)` — `git worktree add` on a new branch `work/<id>`
-- `RemoveWorktree(workspace, ticket)` — `git worktree remove --force`
-- `SquashMerge(workspace, ticket)` — merges to main with `feat: complete <id>` message, returns commit hash
-- `IsClean(workspace, ticket)` — checks for uncommitted changes in the worktree
-- `WIPCommit(workspace, ticket)` — commits everything with `wip(<ticket>): pre-handoff checkpoint [orchestrator]`
-- `GetDiff(workspace, ticket)` — `git diff main..HEAD` from the worktree, excluding `.task/`
-- `IsStalled(workspace, ticket, minutes)` — `git log --since=N minutes` returns empty
-- `GetCommitCount`, `GetLastCommitTime` — used by TUI for the ACTIVE panel
-
-### `internal/archive`
-- `Archive(workspace, ticketID, outcome, mergeCommit, rejectionReason)` — copies `brief.md`, `log.md`, `review.md` (if exists), writes `diff.patch` and `meta.json` into `archive/<id>/` or `archive/<id>_rejected/` (collisions become `_rejected_2`, etc.)
-- `meta.json` fields: `Ticket`, `Outcome`, `ArchivedAt`, `MergeCommit`, `RejectionReason`, `Events` (full event history)
-
-### `internal/orchestrator`
-- Single goroutine + `time.Ticker` + buffered `chan struct{}`
-- `New(workspace, cfg)` / `Start()` / `Stop()`
-- `Updates()` returns read-only channel; TUI blocks on it between refreshes
-- `GetState()` returns snapshot of `Alerts []string` and `SpawnCommands []SpawnCommand`
-- `DismissAlerts()`, `DismissSpawnCommand(ticket)`
-- `SpawnCommand` struct has `Ticket`, `Command`, `Role` (`"impl"` or `"qa"`) — TUI labels them with color-coded role badges
-- On each tick: (1) claim queued tickets up to `max_agents` — skipping any whose `## Dependencies` are not yet `"done"`, (2) check stalls, (3) auto-commit WIP on `pending-review` worktrees, (4) surface QA spawn commands for `pending-review` tickets
-
-### `internal/tui`
-- Bubble Tea `Model` with `Init / Update / View`
-- Five panels rendered in order: **SPAWN** (green border), **QUEUE**, **ACTIVE**, **AWAITING REVIEW** (yellow border), **ALERTS** (red border)
-- Key bindings: `r` refresh, `a` dismiss alerts, `q`/`ctrl+c` quit
-- Auto-refreshes every 15 seconds via `tea.Tick`; also refreshes on every orchestrator `Updates()` signal
-- `Run(workspace)` is the only exported entry point — called from `startCmd`
+- **`workspace`** — `Find` walks up from cwd for `.iudex/config.yml` (works from inside a worktree, like git finds `.git`). `Config`/`LoadConfig`, path helpers, and `TicketFromCwd` (reverse-maps a cwd to its ticket).
+- **`events`** — `Event{ID,Ticket,From,To,TS,Trigger,Deps,Reason}`. `Append` fills a UUID + RFC3339 timestamp and writes one JSON line with `O_APPEND` (concurrency-safe). `ReadAll` returns all events, skipping malformed lines.
+- **`ticket`** — `State`/`Trigger` constants, `Status{Ticket,State,Deps,QARejects}`. `Derive` replays events into per-ticket status (state = last `To`; deps from the queue event; counter increments on `qa-reject`, resets on `retry`). Plus `DepsReady`, `MaxID`, `ParseID`/`FormatID`, `IsTerminal`, `HasWorktree`.
+- **`git`** — `exec.Command` wrappers: `IsRepo`, `Init`, `CurrentBranch`, `HasCommits`, `CommitAll`, `CreateWorktree`, `RemoveWorktree`, `IsClean`, `WIPCommit`, `Diff` (three-dot vs base), `Merge` (no-ff/squash, aborts + restores on failure), `EnsureExclude` (writes `.task/` to the shared exclude).
+- **`archive`** — `Archive` copies `brief.md`/`log.md`/`review.md` from `.task/`, writes `diff.patch` and `meta.json` (outcome, timestamps, merge commit, qa-reject count, full event history) into `archive/<id>/`.
+- **`cmd`** — cobra commands, one file per command. `common.go`: `loadContext` (workspace + config + events + derived statuses), `resolveTicket` (explicit or cwd-inferred), `spawnCommand`.
 
 ---
 
-## Key design decisions (do not revisit)
+## Key design decisions
 
 | Decision | Rationale |
 |----------|-----------|
-| `events.jsonl` as sole state source | Concurrent-safe POSIX append; no locking needed |
-| `.task/` inside each worktree | Colocalizes context with work; no cross-worktree path math |
-| QA agents are read-only | Enforces clean separation between impl and review phases |
-| Stall detection via `git log --since` | No heartbeat files to manage or clean up |
-| Human approves all merges | Nothing reaches main without explicit `iudex merge` |
-| `--no-ff` merge | Preserves branch history while keeping a clear merge commit on main |
-| All git ops via `exec.Command` | No libgit2 dependency; works wherever `git` is installed |
-| `//go:embed all:templates` | Config, rules, skills ship inside the binary |
-| Orchestrator surfaces spawn commands, doesn't run them | Human launches agent in a terminal; tool is agent-agnostic |
+| `events.jsonl` as sole source of truth | Concurrent-safe POSIX `O_APPEND`; status is a pure projection via replay |
+| Deps recorded in the queue event, not markdown | No file-vs-state drift; deps must be pre-registered → dependency graph is a DAG by construction (no cycle detection needed) |
+| In-place workspace under a gitignored `.iudex/` | Run iudex inside your project; nothing pollutes project history |
+| Merge happens in the repo root | git forbids `main` checked out in two worktrees, so `human-qa approve` merges at the root and refuses unless it is on `main_branch` and clean |
+| Mark `done` immediately after the merge | The merge is the irreversible step; archive + worktree removal are best-effort cleanup whose failure is reported but never blocks |
+| `.task/` ignored via the shared exclude | Keeps it out of any tracked `.gitignore` and out of the merge; the worktree stays pristine |
+| iudex prints spawn commands, never execs | Stays agent-agnostic; the human launches the agent |
+| cwd-based ticket inference | An agent inside a worktree runs `iudex finish`/`qa …` without knowing its ticket id |
+| All git via `exec.Command` | No libgit2; works wherever `git` is installed |
+| `//go:embed templates` (no `all:`) | Bundles the scaffold while excluding dot-prefixed junk (e.g. `.DS_Store`) |
 
 ---
 
-## Dependencies
+## Configuration (`.iudex/config.yml`)
 
-| Package | Purpose |
-|---------|---------|
-| `github.com/spf13/cobra` | CLI commands and flags |
-| `github.com/charmbracelet/bubbletea` | Elm-style TUI framework |
-| `github.com/charmbracelet/lipgloss` | Terminal styles and borders |
-| `gopkg.in/yaml.v3` | Parse `.iudex/config.yml` |
-
-All vendored. No network access needed to build.
+| Field | Meaning |
+|-------|---------|
+| `main_branch` | Canonical merge target (set to the repo's current branch at init) |
+| `max_active` | Cap on tickets in the `active` state (`0` = unlimited) |
+| `qa_reject_limit` | QA rejections before a ticket becomes `failed` (`<= 0` = unlimited) |
+| `agent_command` | Binary used to build spawn commands (e.g. `claude`) |
+| `merge_strategy` | `no-ff` (default) or `squash` |
+| `merge_message_template` | Merge commit message; `{{.Ticket}}` is substituted |
+| `branch_prefix` | Per-ticket branch prefix (e.g. `work/`) |
 
 ---
 
-## What is NOT implemented yet
+## Testing
 
-The core pipeline is functional. Known gaps before production hardening:
+```bash
+go test ./...
+```
 
-- Error handling in `merge` and `reject` for edge cases (worktree already removed, branch already merged)
-- `feedback` command (referenced in PRD OQ2, not yet implemented)
-- Integration tests against real git repos (all git functions are implemented but untested end-to-end)
+- `internal/ticket`, `internal/events` — fast unit tests (replay rules, the qa-reject counter, deps, append/read).
+- `main_test.go` — CLI-seam tests: builds the binary once in `TestMain` with a **hermetic git config** (pinned `init.defaultBranch` + identity via `GIT_CONFIG_GLOBAL`/`GIT_AUTHOR_*`), then drives the pipeline in temp repos and asserts state after each command. Covers the full happy path to `done` (merge, archive, worktree removal), dep-blocking, `max_active`, the qa-reject ladder to `failed`, `retry`, `human-qa reject` feedback, the dirty/off-main approve guards, and `remove`.
+
+---
+
+## Not yet implemented / known gaps
+
+- **Automation** — auto-activation of ready tickets, any watch loop, or concurrency policy beyond the manual `max_active` cap. v1 is deliberately command-driven; automation is future work.
+- **Merge-conflict tooling** — a conflicting `human-qa approve` aborts and is resolved manually; iudex does not assist.
+- **Direct unit tests** for `workspace`, `git`, and `archive` (currently exercised only transitively via the CLI seam).
+- **README** may lag the implementation.
 
 ---
 
 ## Non-goals (v1)
 
-- No automatic merging — human must run `iudex merge`
-- No task bundling or AI-driven ticket assignment
-- No remote/multi-machine coordination
-- No web dashboard (deferred)
-- `improve-arch` skill outputs reports only, never writes code
+- No background process, daemon, ticks, heartbeat, or stall detection.
+- No TUI — `iudex status` is a one-shot print.
+- No automatic merging — a human runs `iudex human-qa approve`.
+- No remote/multi-machine coordination; iudex state is local-only.
+- No launching of agent processes — iudex only prints spawn commands.

@@ -1,5 +1,5 @@
-// Package git wraps git CLI operations for worktree management.
-// All operations use exec.Command("git", ...) against the system git binary.
+// Package git wraps the git CLI via exec.Command. No libgit2 dependency; works
+// wherever git is on PATH.
 package git
 
 import (
@@ -7,136 +7,170 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"time"
-
-	"iudex/internal/config"
 )
 
-// run executes a git command in cwd and returns trimmed stdout.
-func run(cwd string, args ...string) (string, error) {
+// run executes a git command in dir and returns trimmed stdout.
+func run(dir string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
-	cmd.Dir = cwd
+	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			return "", fmt.Errorf("git %s: %s",
-				strings.Join(args, " "),
-				strings.TrimSpace(string(exitErr.Stderr)))
+			return "", fmt.Errorf("git %s: %s", strings.Join(args, " "), strings.TrimSpace(string(exitErr.Stderr)))
 		}
 		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
 }
 
-// CreateWorktree creates a new git worktree for ticket on a fresh branch from main.
-func CreateWorktree(workspace, ticket string) (string, error) {
-	main := config.MainWorktree(workspace)
-	dest := config.TaskWorktree(workspace, ticket)
-	branch := "work/" + ticket
-	if _, err := run(main, "worktree", "add", "-b", branch, dest, "main"); err != nil {
-		return "", fmt.Errorf("create worktree: %w", err)
+// IsRepo reports whether dir is inside a git work tree.
+func IsRepo(dir string) bool {
+	out, err := run(dir, "rev-parse", "--is-inside-work-tree")
+	return err == nil && out == "true"
+}
+
+// Init runs `git init` in dir.
+func Init(dir string) error {
+	_, err := run(dir, "init")
+	return err
+}
+
+// CurrentBranch returns the checked-out branch name, including an unborn branch
+// (a fresh repo with no commits yet). It fails on a detached HEAD.
+func CurrentBranch(dir string) (string, error) {
+	return run(dir, "symbolic-ref", "--short", "HEAD")
+}
+
+// HasCommits reports whether HEAD resolves to a commit. A repo with no commits
+// yet returns false, nil.
+func HasCommits(dir string) (bool, error) {
+	if _, err := run(dir, "rev-parse", "--verify", "HEAD"); err != nil {
+		return false, nil
 	}
-	ensureTaskGitignored(dest)
-	return dest, nil
+	return true, nil
 }
 
-// RemoveWorktree removes the worktree directory and deletes its branch.
-func RemoveWorktree(workspace, ticket string) {
-	main := config.MainWorktree(workspace)
-	dest := config.TaskWorktree(workspace, ticket)
-	run(main, "worktree", "remove", dest, "--force") // best-effort
-	run(main, "branch", "-D", "work/"+ticket)         // best-effort
+// CommitAll stages everything and commits with message. If there is nothing to
+// stage (e.g. a blank directory), it falls back to an empty commit so that
+// worktrees later have a base commit to branch from.
+func CommitAll(dir, message string) error {
+	if _, err := run(dir, "add", "-A"); err != nil {
+		return err
+	}
+	if _, err := run(dir, "commit", "-m", message); err != nil {
+		if _, err2 := run(dir, "commit", "--allow-empty", "-m", message); err2 != nil {
+			return err2
+		}
+	}
+	return nil
 }
 
-// IsClean returns true when the worktree has no uncommitted changes.
-func IsClean(workspace, ticket string) (bool, error) {
-	out, err := run(config.TaskWorktree(workspace, ticket), "status", "--porcelain")
+// IsClean reports whether the working tree at dir has no uncommitted changes
+// (ignored paths such as .task/ do not count).
+func IsClean(dir string) (bool, error) {
+	out, err := run(dir, "status", "--porcelain")
 	if err != nil {
 		return false, err
 	}
 	return out == "", nil
 }
 
-// GetLastCommitTime returns the timestamp of the most recent commit in the worktree.
-func GetLastCommitTime(workspace, ticket string) (time.Time, error) {
-	wt := config.TaskWorktree(workspace, ticket)
-	if _, err := os.Stat(wt); os.IsNotExist(err) {
-		return time.Time{}, nil
+// CreateWorktree adds a worktree at dest on a new branch off base, run from the
+// main worktree at repoRoot.
+func CreateWorktree(repoRoot, dest, branch, base string) error {
+	if _, err := run(repoRoot, "worktree", "add", "-b", branch, dest, base); err != nil {
+		return fmt.Errorf("create worktree: %w", err)
 	}
-	out, err := run(wt, "log", "-1", "--format=%aI")
-	if err != nil || out == "" {
-		return time.Time{}, err
-	}
-	return time.Parse(time.RFC3339, out)
+	return nil
 }
 
-// IsStalled returns true when there have been no commits in timeoutMinutes.
-func IsStalled(workspace, ticket string, timeoutMinutes int) bool {
-	t, err := GetLastCommitTime(workspace, ticket)
-	if err != nil || t.IsZero() {
-		return true
-	}
-	return time.Since(t) > time.Duration(timeoutMinutes)*time.Minute
-}
-
-// GetDiff returns the diff of the ticket branch vs main, excluding .task/.
-func GetDiff(workspace, ticket string) (string, error) {
-	return run(
-		config.TaskWorktree(workspace, ticket),
-		"diff", "main..HEAD", "--", ":(exclude).task",
-	)
-}
-
-// GetCommitCount returns the number of commits the ticket branch is ahead of main.
-func GetCommitCount(workspace, ticket string) (int, error) {
-	out, err := run(config.TaskWorktree(workspace, ticket), "rev-list", "--count", "main..HEAD")
+// EnsureExclude appends pattern to the repository's shared exclude file
+// (info/exclude in the common git dir) if not already present. The pattern is
+// then ignored in every worktree without touching any tracked .gitignore.
+func EnsureExclude(repoRoot, pattern string) error {
+	common, err := run(repoRoot, "rev-parse", "--git-common-dir")
 	if err != nil {
-		return 0, err
-	}
-	return strconv.Atoi(out)
-}
-
-// WIPCommit stages all changes and creates a pre-handoff checkpoint commit.
-func WIPCommit(workspace, ticket string) error {
-	wt := config.TaskWorktree(workspace, ticket)
-	if _, err := run(wt, "add", "-A"); err != nil {
 		return err
 	}
-	_, err := run(wt, "commit", "-m",
-		fmt.Sprintf("wip(%s): pre-handoff checkpoint [orchestrator]", ticket))
+	if !filepath.IsAbs(common) {
+		common = filepath.Join(repoRoot, common)
+	}
+	infoDir := filepath.Join(common, "info")
+	if err := os.MkdirAll(infoDir, 0o755); err != nil {
+		return err
+	}
+	exclude := filepath.Join(infoDir, "exclude")
+	data, err := os.ReadFile(exclude)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) == pattern {
+			return nil
+		}
+	}
+	f, err := os.OpenFile(exclude, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	prefix := ""
+	if len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
+		prefix = "\n"
+	}
+	_, err = fmt.Fprintf(f, "%s%s\n", prefix, pattern)
 	return err
 }
 
-// SquashMerge merges the ticket branch into main.
-// Returns the resulting commit hash.
-func SquashMerge(workspace, ticket string) (string, error) {
-	main := config.MainWorktree(workspace)
-	branch := "work/" + ticket
-	if _, err := run(main, "merge", "--no-ff", "-m", fmt.Sprintf("feat: complete %s", ticket), branch); err != nil {
-		return "", fmt.Errorf("merge: %w", err)
+// RemoveWorktree force-removes a worktree and deletes its branch.
+func RemoveWorktree(repoRoot, dest, branch string) error {
+	if _, err := run(repoRoot, "worktree", "remove", "--force", dest); err != nil {
+		return err
 	}
-	return run(main, "rev-parse", "HEAD")
+	if _, err := run(repoRoot, "branch", "-D", branch); err != nil {
+		return err
+	}
+	return nil
 }
 
-// ensureTaskGitignored appends .task/ to the worktree's .gitignore if absent.
-func ensureTaskGitignored(worktreePath string) {
-	gitignore := filepath.Join(worktreePath, ".gitignore")
-	entry := ".task/"
+// WIPCommit stages everything in dir and commits with message (a checkpoint).
+// Ignored paths (.task/) are not staged.
+func WIPCommit(dir, message string) error {
+	if _, err := run(dir, "add", "-A"); err != nil {
+		return err
+	}
+	_, err := run(dir, "commit", "-m", message)
+	return err
+}
 
-	data, err := os.ReadFile(gitignore)
-	if err == nil {
-		for _, line := range strings.Split(string(data), "\n") {
-			if strings.TrimSpace(line) == entry {
-				return
-			}
+// Diff returns the changes the worktree's branch introduced relative to base
+// (three-dot, so changes that landed on base afterwards aren't shown). .task/ is
+// untracked and never appears.
+func Diff(worktreeDir, base string) (string, error) {
+	return run(worktreeDir, "diff", base+"...HEAD")
+}
+
+// Merge merges branch into the branch currently checked out at repoRoot using
+// strategy ("squash" or, by default, "no-ff") and message, returning the new
+// commit hash. On any failure it restores the working tree (the caller must
+// ensure it was clean first) and returns an error.
+func Merge(repoRoot, branch, strategy, message string) (string, error) {
+	var mergeErr error
+	switch strategy {
+	case "squash":
+		if _, err := run(repoRoot, "merge", "--squash", branch); err != nil {
+			mergeErr = err
+		} else if _, err := run(repoRoot, "commit", "-m", message); err != nil {
+			mergeErr = err
 		}
+	default: // "no-ff"
+		_, mergeErr = run(repoRoot, "merge", "--no-ff", "-m", message, branch)
 	}
-	f, err := os.OpenFile(gitignore, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
-	if err != nil {
-		return
+	if mergeErr != nil {
+		run(repoRoot, "merge", "--abort")        // best effort
+		run(repoRoot, "reset", "--hard", "HEAD") // ensure a clean restore
+		return "", fmt.Errorf("merge %s: %w", branch, mergeErr)
 	}
-	defer f.Close()
-	fmt.Fprintf(f, "\n# iudex: task context (not part of implementation)\n%s\n", entry)
+	return run(repoRoot, "rev-parse", "HEAD")
 }
