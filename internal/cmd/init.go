@@ -52,6 +52,14 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("update .gitignore: %w", err)
 	}
 
+	// Register the work-shaping skills in a tracked AGENTS.md before any commit,
+	// so a fresh repo captures it in the initial commit and the working tree
+	// stays clean (the skills themselves live under the gitignored .iudex/skills/).
+	addedAgents, err := ensureAgentsIndex(root)
+	if err != nil {
+		return fmt.Errorf("update AGENTS.md: %w", err)
+	}
+
 	// Worktrees need a base commit on the canonical branch. Create one only when
 	// the repo has no history yet, leaving any existing history untouched.
 	hasCommits, err := git.HasCommits(root)
@@ -79,9 +87,52 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	if addedIgnore && hasCommits {
 		fmt.Fprintf(out, "  note: added %s/ to .gitignore — commit it when ready\n", workspace.Dir)
 	}
+	if addedAgents && hasCommits {
+		fmt.Fprintln(out, "  note: wrote the iudex section to AGENTS.md — commit it when ready")
+	}
 	fmt.Fprintf(out, "  Author a ticket:   vim %s\n", filepath.Join(workspace.Dir, "queue", "t$(iudex next-ticket-id).md"))
 	fmt.Fprintln(out, "  Then register it:  iudex queue t<id> --deps <ids>")
+	fmt.Fprintln(out, "  Or shape work first: see the skills indexed in AGENTS.md")
 	return nil
+}
+
+// agentsMarker identifies the iudex-managed section within AGENTS.md so the
+// append stays idempotent.
+const agentsMarker = "<!-- iudex:begin -->"
+
+// ensureAgentsIndex appends the embedded AGENTS.md section (indexing the
+// work-shaping skills) to <root>/AGENTS.md, creating the file if absent. It is a
+// no-op when the iudex section is already present. Reports whether it wrote.
+func ensureAgentsIndex(root string) (bool, error) {
+	section, err := templatesFS.ReadFile("templates/agents_section.md")
+	if err != nil {
+		return false, err
+	}
+
+	p := filepath.Join(root, "AGENTS.md")
+	data, err := os.ReadFile(p)
+	if err != nil && !os.IsNotExist(err) {
+		return false, err
+	}
+	if strings.Contains(string(data), agentsMarker) {
+		return false, nil
+	}
+
+	f, err := os.OpenFile(p, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	prefix := ""
+	if len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
+		prefix = "\n\n"
+	} else if len(data) > 0 {
+		prefix = "\n"
+	}
+	if _, err := fmt.Fprintf(f, "%s%s", prefix, section); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // ensureGitignore appends entry to <root>/.gitignore if not already present.

@@ -47,6 +47,23 @@ iudex human-qa approve t1               # merge to main, archive, remove the wor
 
 Check progress any time with `iudex status`.
 
+## Before the queue: shaping work
+
+The CLI starts at `iudex queue`. The step *before* that — turning a raw idea into robust, sliced, dependency-ordered tickets — is handled by a set of **bundled skills** that `iudex init` scaffolds into `.iudex/skills/` and indexes in a tracked root `AGENTS.md`. Your agent reads that index and loads the relevant skill on demand:
+
+```
+grill-me / grill-with-docs → prototype → to-prd → to-issues → iudex queue
+      (stress-test)          (validate)   (spec)    (slice)
+```
+
+- **grill-me / grill-with-docs** — get relentlessly interviewed about a plan until it holds up; the docs variant also maintains a domain glossary and ADRs under `.context/`.
+- **prototype** — throwaway code (a terminal logic app or UI variants) to validate a design before committing.
+- **to-prd** — synthesize the discussion into a PRD at `.context/prd/<slug>.md`.
+- **to-issues** — slice a plan/PRD into tickets and register them with `iudex queue tN --deps …` (a slice's blockers become iudex dependencies).
+- **improve-codebase-architecture** — find refactoring opportunities that feed back into the funnel.
+
+The skills only ever *call* iudex; iudex stays unaware of them. `.context/` is tracked project documentation (committed), so its glossary, ADRs, and PRDs travel into ticket worktrees where the impl and QA agents can read them.
+
 ## Commands
 
 | Command | Description |
@@ -100,11 +117,14 @@ Edit `.iudex/prompts/impl.md` and `review.md` to customize the instructions bake
 
 ```
 <your-project>/             # your repo = the canonical "main" worktree
-└── .iudex/                 # all iudex state (gitignored)
-    ├── config.yml
-    ├── prompts/            # impl.md, review.md
-    ├── queue/              # author tickets here: t<N>.md
-    ├── archive/            # archive/t<N>/ per done/removed ticket
-    ├── events.jsonl        # append-only source of truth
-    └── worktrees/t<N>/     # one worktree per active ticket (+ .task/ context)
+├── .iudex/                 # all iudex state (gitignored)
+│   ├── config.yml
+│   ├── prompts/            # impl.md, review.md
+│   ├── skills/             # bundled work-shaping skills (<name>/SKILL.md)
+│   ├── queue/              # author tickets here: t<N>.md
+│   ├── archive/            # archive/t<N>/ per done/removed ticket
+│   ├── events.jsonl        # append-only source of truth
+│   └── worktrees/t<N>/     # one worktree per active ticket (+ .task/ context)
+├── AGENTS.md               # tracked; indexes the skills (init appends its section)
+└── .context/               # tracked project docs (glossary, adr/, prd/) — lazily created
 ```

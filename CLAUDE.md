@@ -46,16 +46,34 @@ Requires Go 1.22+. Dependencies are just `github.com/spf13/cobra` and `gopkg.in/
 │   ├── prompts/
 │   │   ├── impl.md              # injected into impl spawn commands
 │   │   └── review.md            # injected into QA spawn commands
+│   ├── skills/                  # bundled work-shaping skills (one <name>/SKILL.md each)
 │   ├── queue/                   # author tickets here: t<N>.md
 │   ├── archive/                 # archive/t<N>/ per done/removed ticket
 │   ├── events.jsonl             # append-only source of truth
 │   └── worktrees/
 │       └── t<N>/                # one git worktree per active ticket (branch <branch_prefix>t<N>)
 │           └── .task/           # brief.md, log.md, review.md (ignored via the repo's shared exclude)
+├── AGENTS.md                    # TRACKED; init appends a marked iudex section indexing the skills
+├── .context/                    # TRACKED project docs (created lazily by the skills)
+│   ├── glossary.md              #   domain glossary (every top-level *.md is read as glossary)
+│   ├── adr/                     #   architectural decision records, NNNN-slug.md
+│   └── prd/                     #   PRDs from to-prd (subfolder so they aren't read as glossary)
 └── …                            # your real project files, on main_branch
 ```
 
 `.task/` is kept out of git via the repository's shared exclude (`$GIT_DIR/info/exclude`), so it never pollutes a tracked `.gitignore` and never leaks into a merge.
+
+### Work-shaping skills (the front of the funnel)
+
+Everything *before* `iudex queue` — turning a raw idea into robust, sliced, dependency-ordered tickets — is handled by bundled skills, not by the CLI. They are embedded in the binary, scaffolded to `.iudex/skills/` on `init`, and indexed in a tracked root `AGENTS.md` so the user's agent loads the relevant `SKILL.md` on demand (no cat-injection). The funnel:
+
+```
+grill-me / grill-with-docs → prototype → to-prd → to-issues → iudex queue
+```
+
+`to-issues` is the seam to the CLI: it slices a plan/PRD into `t<N>.md` briefs and registers them with `iudex queue tN --deps …` (each slice's blockers become iudex deps; deps live only in the queue event, never in the markdown). The coupling is one-directional — skills call the CLI; the CLI knows nothing about the skills.
+
+`.context/` is **tracked** (unlike the gitignored `.iudex/`): committing the glossary, ADRs, and PRDs is what makes them visible inside ticket worktrees, so impl/QA agents share the same domain language. The bundled set is grill-me, grill-with-docs, prototype, to-prd, to-issues, improve-codebase-architecture.
 
 ---
 
