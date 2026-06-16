@@ -4,6 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 import { VIEWS, type View, type Workspace } from "./types";
 import Dashboard from "./views/Dashboard";
 import Tickets from "./views/Tickets";
+import Terminal from "./views/Terminal";
+import Agents from "./views/Agents";
 import Stub from "./views/Stub";
 import "./App.css";
 
@@ -17,6 +19,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<string>("");
   const [view, setView] = useState<View>("dashboard");
+  // Set when another view (an agent peek) asks Terminal to focus a session.
+  const [focusSession, setFocusSession] = useState<string | null>(null);
 
   // The sole read path: re-run `iudex status --json` and replace local view.
   const load = useCallback(async (r: string) => {
@@ -92,15 +96,17 @@ export default function App() {
             {view === "dashboard" && <Dashboard ws={ws} onJump={setView} />}
             {view === "tickets" && <Tickets ws={ws} />}
             {view === "terminal" && (
-              <Stub
-                title="Terminal"
-                blurb="Tabbed tmux-backed terminal sessions — ad-hoc shells and the full interactive view of any agent."
+              <Terminal
+                focus={focusSession}
+                onFocusHandled={() => setFocusSession(null)}
               />
             )}
             {view === "agents" && (
-              <Stub
-                title="Agents"
-                blurb="A grid of read-only peeks into live agent sessions, each with a synthesized health status."
+              <Agents
+                onOpenInTerminal={(name) => {
+                  setFocusSession(name);
+                  setView("terminal");
+                }}
               />
             )}
             {view === "worktrees" && (

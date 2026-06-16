@@ -19,6 +19,14 @@ export interface Workspace {
   tickets: Ticket[];
 }
 
+// A session in the unified tmux pool, mirroring the Rust `Session` struct.
+export interface Session {
+  name: string;
+  kind: "agent" | "shell";
+  ticket: string | null;
+  title: string;
+}
+
 // The seven top-level views, in nav order. Dashboard is the default landing.
 export type View =
   | "dashboard"

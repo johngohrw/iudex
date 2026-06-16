@@ -6,6 +6,8 @@
 // All mutations (later) likewise go through the iudex CLI, never reimplemented
 // here — the GUI drives iudex the way a git client drives git.
 
+mod tmux;
+
 use std::path::Path;
 use std::process::Command;
 use std::sync::Mutex;
@@ -104,11 +106,22 @@ fn watch_workspace(
 pub fn run() {
     tauri::Builder::default()
         .manage(WatcherState::default())
+        .manage(tmux::PtyState::default())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             discover_workspace,
             iudex_status,
-            watch_workspace
+            watch_workspace,
+            tmux::tmux_available,
+            tmux::list_sessions,
+            tmux::create_shell,
+            tmux::kill_session,
+            tmux::capture_pane,
+            tmux::open_terminal,
+            tmux::write_terminal,
+            tmux::resize_terminal,
+            tmux::close_terminal,
+            tmux::next_terminal_id
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
