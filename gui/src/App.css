@@ -340,9 +340,20 @@ body {
   color: #e0cf8f;
 }
 
+.status-awaiting-finish {
+  background: #1f2f3a;
+  color: #8fc7e0;
+}
+
+.status-crashed,
 .status-gone {
   background: #3a2424;
   color: #e09b8f;
+}
+
+.status-done {
+  background: #233a36;
+  color: #8fd6cb;
 }
 
 .peek-screen {

@@ -149,7 +149,52 @@ pub fn spawn_agent(root: String, id: String) -> Result<Session, String> {
     if !st.success() {
         return Err("tmux new-session failed".to_string());
     }
+    // Keep the pane after the agent process exits, so its exit status survives
+    // for the status heuristic (alive→working/idle, exited 0→awaiting-finish,
+    // exited non-zero→crashed). Without this the session would just vanish.
+    let _ = Command::new("tmux")
+        .args(["set-option", "-w", "-t", &name, "remain-on-exit", "on"])
+        .status();
     parse_session(&name).ok_or_else(|| "internal: bad session name".to_string())
+}
+
+/// Process-liveness of a session's pane: whether its command has exited and, if
+/// so, the exit code. Combined with output activity and ticket state on the
+/// frontend, this yields the synthesized agent status. iudex has no liveness
+/// signal of its own; this is the GUI's cheap process-level one.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaneStatus {
+    pub dead: bool,
+    pub exit_code: Option<i32>,
+}
+
+#[tauri::command]
+pub fn session_status(name: String) -> Result<PaneStatus, String> {
+    let out = Command::new("tmux")
+        .args([
+            "display-message",
+            "-p",
+            "-t",
+            &name,
+            "-F",
+            "#{pane_dead}|#{pane_dead_status}",
+        ])
+        .output()
+        .map_err(|e| format!("tmux display-message: {e}"))?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    let s = String::from_utf8_lossy(&out.stdout);
+    let line = s.trim();
+    let (dead_s, code_s) = line.split_once('|').unwrap_or((line, ""));
+    let dead = dead_s.trim() == "1";
+    let exit_code = if dead {
+        code_s.trim().parse::<i32>().ok()
+    } else {
+        None
+    };
+    Ok(PaneStatus { dead, exit_code })
 }
 
 /// Kill a pool session (refusing anything outside our prefix). This ends the

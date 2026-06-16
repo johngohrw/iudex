@@ -109,6 +109,7 @@ export default function App() {
             </div>
             {view === "agents" && (
               <Agents
+                ws={ws}
                 onOpenInTerminal={(name) => {
                   setFocusSession(name);
                   setView("terminal");
