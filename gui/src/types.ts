@@ -24,6 +24,8 @@ export interface Session {
   name: string;
   kind: "agent" | "shell";
   ticket: string | null;
+  role?: string | null; // agent's role at spawn ("impl" | "qa")
+  started?: string | null; // agent spawn time (unix millis string, sortable)
   title: string;
 }
 

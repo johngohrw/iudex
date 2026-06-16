@@ -133,6 +133,7 @@ pub fn run() {
             watch_workspace,
             tmux::tmux_available,
             tmux::spawn_agent,
+            tmux::clear_finished,
             tmux::session_status,
             tmux::list_sessions,
             tmux::create_shell,

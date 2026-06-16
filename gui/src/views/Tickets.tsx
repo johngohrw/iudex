@@ -40,12 +40,14 @@ export default function Tickets({
   const activate = (id: string) =>
     act(id, async () => {
       await invoke("run_iudex", { root, args: ["activate", id] });
-      await invoke("spawn_agent", { root, id }); // launch the impl agent
+      await invoke("spawn_agent", { root, ticket: id, role: "impl" });
     });
   const finish = (id: string) =>
     act(id, () => invoke("run_iudex", { root, args: ["finish", id] }));
-  const spawn = (id: string) =>
-    act(id, () => invoke("spawn_agent", { root, id }));
+  const spawnImpl = (id: string) =>
+    act(id, () => invoke("spawn_agent", { root, ticket: id, role: "impl" }));
+  const spawnQa = (id: string) =>
+    act(id, () => invoke("spawn_agent", { root, ticket: id, role: "qa" }));
   const retry = (id: string) =>
     act(id, () => invoke("run_iudex", { root, args: ["retry", id] }));
 
@@ -67,8 +69,8 @@ export default function Tickets({
             <button
               className="ghost"
               disabled={disabled}
-              onClick={() => spawn(t.id)}
-              title="launch / relaunch the impl agent"
+              onClick={() => spawnImpl(t.id)}
+              title="launch another impl agent"
             >
               Agent
             </button>
@@ -78,8 +80,8 @@ export default function Tickets({
         return (
           <button
             disabled={disabled}
-            onClick={() => spawn(t.id)}
-            title="launch the QA agent"
+            onClick={() => spawnQa(t.id)}
+            title="launch a QA agent"
           >
             QA agent
           </button>

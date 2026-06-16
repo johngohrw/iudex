@@ -13,6 +13,17 @@ export function sessionTitle(name: string): string {
   return `${rest.slice(0, dash)} ${rest.slice(dash + 1)}`;
 }
 
+// Friendly label for a session, used by both the Agents peeks and the Terminal
+// tabs. Agents have opaque names, so their label comes from metadata (ticket ·
+// role); shells fall back to the name-derived title.
+export function sessionLabel(s: Session): string {
+  if (s.kind === "agent") {
+    const ticket = s.ticket ?? "agent";
+    return s.role ? `${ticket} · ${s.role}` : ticket;
+  }
+  return sessionTitle(s.name);
+}
+
 // Poll the tmux pool. Session membership changes on tmux commands the GUI
 // doesn't route (a shell exiting, an agent dying), so unlike ticket state there
 // is no doorbell — a light poll is the pragmatic source of truth here.

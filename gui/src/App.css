@@ -277,6 +277,27 @@ body {
 }
 
 /* Agents grid */
+.agents-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.agents-toolbar button.ghost {
+  padding: 4px 12px;
+  border: 1px solid #3a3b3f;
+  border-radius: 6px;
+  background: transparent;
+  color: #9db4e0;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.agents-toolbar button.ghost:hover {
+  background: #2a2b30;
+}
+
 .agents {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -340,7 +361,8 @@ body {
   color: #e0cf8f;
 }
 
-.status-awaiting-finish {
+.status-awaiting-finish,
+.status-review-ready {
   background: #1f2f3a;
   color: #8fc7e0;
 }

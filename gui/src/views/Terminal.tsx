@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { useSessions, sessionTitle } from "../lib/sessions";
+import { useSessions, sessionTitle, sessionLabel } from "../lib/sessions";
+import type { Session } from "../types";
 import XtermPane from "./XtermPane";
 
 // The interactive, full-size surface over the tmux pool. Each tab is a live
@@ -90,7 +91,7 @@ export default function Terminal({
             className={`term-tab${activeTab === name ? " active" : ""}`}
             onClick={() => setActiveTab(name)}
           >
-            <span>{sessionTitle(name)}</span>
+            <span>{tabLabel(sessions, name)}</span>
             <button
               className="tab-x"
               title="kill session"
@@ -130,4 +131,11 @@ export default function Terminal({
       )}
     </div>
   );
+}
+
+// Tab label: prefer the session's metadata-derived label (ticket · role for
+// agents); fall back to the name for a session not yet in the polled list.
+function tabLabel(sessions: Session[], name: string): string {
+  const s = sessions.find((x) => x.name === name);
+  return s ? sessionLabel(s) : sessionTitle(name);
 }

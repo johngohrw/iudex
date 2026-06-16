@@ -1,8 +1,10 @@
 // The unified tmux session pool — the persistence substrate the stateless GUI
-// itself lacks. Agents and ad-hoc shells all live as tmux sessions in one pool,
-// kind-tagged by name (`iudex-shell-N`, `iudex-agent-tN`). The GUI attaches to a
-// session through a PTY for an interactive terminal, and reads a session's
-// screen with `capture-pane` for the lightweight read-only peeks in the Agents
+// itself lacks. Agents and ad-hoc shells all live as tmux sessions in one pool.
+// Shells are name-tagged (`iudex-shell-N`); agents carry an *opaque* unique name
+// (`iudex-agent-<id>`) with their ticket/role/start-time held in tmux
+// user-options (`@iudex_*`), so any number of agents can coexist per ticket. The
+// GUI attaches to a session through a PTY for an interactive terminal, and reads
+// a session's screen with `capture-pane` for the read-only peeks in the Agents
 // grid. Sessions outlive the GUI: closing a terminal only detaches the client.
 
 use std::collections::HashMap;
@@ -10,6 +12,7 @@ use std::io::{Read, Write};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use base64::Engine;
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
@@ -19,35 +22,35 @@ use tauri::{AppHandle, Emitter, State};
 /// user's own tmux sessions.
 const PREFIX: &str = "iudex-";
 
-/// A session in the pool, as surfaced to the frontend.
+/// A session in the pool, as surfaced to the frontend. For shells `ticket`,
+/// `role`, and `started` are None; for agents they come from tmux user-options.
 #[derive(serde::Serialize)]
 pub struct Session {
     pub name: String,
-    pub kind: String,           // "agent" | "shell"
-    pub ticket: Option<String>, // set for agent sessions (e.g. "t3")
-    pub title: String,          // display label
+    pub kind: String,            // "agent" | "shell"
+    pub ticket: Option<String>,  // agent's ticket id (e.g. "t3")
+    pub role: Option<String>,    // agent's role at spawn ("impl" | "qa")
+    pub started: Option<String>, // agent spawn time (unix millis, sortable)
+    pub title: String,           // display label (frontend may override)
 }
 
-/// Map an `iudex-…` tmux session name back into a typed Session. Returns None
-/// for names that aren't part of our pool.
-fn parse_session(name: &str) -> Option<Session> {
-    let rest = name.strip_prefix(PREFIX)?;
-    let (kind, tail) = rest.split_once('-')?;
-    match kind {
-        "shell" => Some(Session {
-            name: name.to_string(),
-            kind: "shell".to_string(),
-            ticket: None,
-            title: format!("shell {tail}"),
-        }),
-        "agent" => Some(Session {
-            name: name.to_string(),
-            kind: "agent".to_string(),
-            ticket: Some(tail.to_string()),
-            title: format!("agent {tail}"),
-        }),
-        _ => None,
+/// "" → None, else Some(trimmed). Tmux returns empty strings for unset options.
+fn nonempty(s: &str) -> Option<String> {
+    let t = s.trim();
+    if t.is_empty() {
+        None
+    } else {
+        Some(t.to_string())
     }
+}
+
+/// Unix milliseconds, as a string — used for an agent's opaque-name suffix and
+/// its `@iudex_started` (sortable for the Agents grid ordering).
+fn now_millis() -> String {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis().to_string())
+        .unwrap_or_default()
 }
 
 /// A live PTY attached to a tmux session, held so its threads/handles outlive
@@ -80,8 +83,14 @@ pub fn tmux_available() -> bool {
 /// an empty pool, not an error.
 #[tauri::command]
 pub fn list_sessions() -> Result<Vec<Session>, String> {
+    // One call returns every session's name plus its agent metadata (empty for
+    // shells / non-pool sessions). Tab-delimited; tmux names never contain tabs.
     let out = Command::new("tmux")
-        .args(["list-sessions", "-F", "#{session_name}"])
+        .args([
+            "list-sessions",
+            "-F",
+            "#{session_name}\t#{@iudex_ticket}\t#{@iudex_role}\t#{@iudex_started}",
+        ])
         .output()
         .map_err(|e| format!("tmux: {e}"))?;
     if !out.status.success() {
@@ -93,8 +102,46 @@ pub fn list_sessions() -> Result<Vec<Session>, String> {
     }
     Ok(String::from_utf8_lossy(&out.stdout)
         .lines()
-        .filter_map(parse_session)
+        .filter_map(parse_line)
         .collect())
+}
+
+/// Build a Session from a `list_sessions` line. Agents (opaque `iudex-agent-…`
+/// names) take their ticket/role/started from the user-option columns; shells
+/// (`iudex-shell-N`) are name-derived. Anything else is skipped.
+fn parse_line(line: &str) -> Option<Session> {
+    let mut cols = line.split('\t');
+    let name = cols.next()?;
+    let ticket = nonempty(cols.next().unwrap_or(""));
+    let role = nonempty(cols.next().unwrap_or(""));
+    let started = nonempty(cols.next().unwrap_or(""));
+
+    if let Some(_id) = name.strip_prefix(&format!("{PREFIX}agent-")) {
+        let title = match (&ticket, &role) {
+            (Some(t), Some(r)) => format!("{t} · {r}"),
+            (Some(t), None) => t.clone(),
+            _ => "agent".to_string(),
+        };
+        Some(Session {
+            name: name.to_string(),
+            kind: "agent".to_string(),
+            ticket,
+            role,
+            started,
+            title,
+        })
+    } else if let Some(tail) = name.strip_prefix(&format!("{PREFIX}shell-")) {
+        Some(Session {
+            name: name.to_string(),
+            kind: "shell".to_string(),
+            ticket: None,
+            role: None,
+            started: None,
+            title: format!("shell {tail}"),
+        })
+    } else {
+        None
+    }
 }
 
 /// Create a fresh detached shell session with the lowest free index.
@@ -113,19 +160,31 @@ pub fn create_shell() -> Result<Session, String> {
     if !st.success() {
         return Err("tmux new-session failed".to_string());
     }
-    parse_session(&name).ok_or_else(|| "internal: bad session name".to_string())
+    Ok(Session {
+        name,
+        kind: "shell".to_string(),
+        ticket: None,
+        role: None,
+        started: None,
+        title: format!("shell {n}"),
+    })
 }
 
-/// Launch (or relaunch) the agent for a ticket into the pool. Captures the
-/// spawn command iudex prints for the ticket's *current* state (`iudex spawn`
-/// — impl while active, QA once pending-qa), then runs it inside a fresh
+/// Launch a new agent for a ticket into the pool. Captures the spawn command
+/// iudex prints for the ticket's *current* state (`iudex spawn` — impl while
+/// active, QA once pending-qa), then runs it inside a fresh, *opaque-named*
 /// `iudex-agent-<id>` tmux session. This is the deliberate bridge: iudex only
-/// prints the command, the GUI is the hand that runs it. Any existing session
-/// for the ticket is replaced so the agent always matches the ticket's state.
+/// prints the command, the GUI is the hand that runs it.
+///
+/// Agents *accumulate* — each call is a distinct session, so one ticket can have
+/// several agents over its life (impl, then QA, …). `role` is GUI metadata only
+/// (it does not change the command — iudex derives the prompt from ticket state);
+/// it and the ticket/start-time are stored as tmux user-options for the Agents
+/// view to label and order by.
 #[tauri::command]
-pub fn spawn_agent(root: String, id: String) -> Result<Session, String> {
+pub fn spawn_agent(root: String, ticket: String, role: String) -> Result<Session, String> {
     let out = Command::new(crate::iudex_bin())
-        .args(["spawn", &id])
+        .args(["spawn", &ticket])
         .current_dir(&root)
         .output()
         .map_err(|e| format!("iudex spawn: {e}"))?;
@@ -137,11 +196,13 @@ pub fn spawn_agent(root: String, id: String) -> Result<Session, String> {
         return Err("iudex spawn produced no command".to_string());
     }
 
-    let name = format!("{PREFIX}agent-{id}");
-    // Replace any prior agent session for this ticket (e.g. impl → QA).
-    let _ = Command::new("tmux")
-        .args(["kill-session", "-t", &name])
-        .status();
+    // Opaque, collision-free name (millis + monotonic seq); identity/metadata
+    // live in user-options, not the name.
+    let started = now_millis();
+    let name = format!(
+        "{PREFIX}agent-{started}-{}",
+        SEQ.fetch_add(1, Ordering::Relaxed)
+    );
     let st = Command::new("tmux")
         .args(["new-session", "-d", "-s", &name, &cmd])
         .status()
@@ -155,7 +216,59 @@ pub fn spawn_agent(root: String, id: String) -> Result<Session, String> {
     let _ = Command::new("tmux")
         .args(["set-option", "-w", "-t", &name, "remain-on-exit", "on"])
         .status();
-    parse_session(&name).ok_or_else(|| "internal: bad session name".to_string())
+    // Stamp identity/metadata as user-options (read back by list_sessions).
+    for (opt, val) in [
+        ("@iudex_ticket", ticket.as_str()),
+        ("@iudex_role", role.as_str()),
+        ("@iudex_started", started.as_str()),
+    ] {
+        let _ = Command::new("tmux")
+            .args(["set-option", "-t", &name, opt, val])
+            .status();
+    }
+
+    Ok(Session {
+        name,
+        kind: "agent".to_string(),
+        ticket: Some(ticket),
+        role: nonempty(&role),
+        started: Some(started),
+        title: String::new(),
+    })
+}
+
+/// Bulk-dismiss finished agents: kill every agent session whose pane has exited
+/// (dead), leaving live ones untouched. Backs the Agents view "clear finished"
+/// action. Returns how many were removed.
+#[tauri::command]
+pub fn clear_finished() -> Result<u32, String> {
+    let out = Command::new("tmux")
+        .args([
+            "list-sessions",
+            "-F",
+            "#{session_name}\t#{pane_dead}",
+        ])
+        .output()
+        .map_err(|e| format!("tmux: {e}"))?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        if err.contains("no server running") || err.contains("error connecting") {
+            return Ok(0);
+        }
+        return Err(err.trim().to_string());
+    }
+    let agent_prefix = format!("{PREFIX}agent-");
+    let mut killed = 0u32;
+    for line in String::from_utf8_lossy(&out.stdout).lines() {
+        let (name, dead) = line.split_once('\t').unwrap_or((line, ""));
+        if name.starts_with(&agent_prefix) && dead.trim() == "1" {
+            let _ = Command::new("tmux")
+                .args(["kill-session", "-t", name])
+                .status();
+            killed += 1;
+        }
+    }
+    Ok(killed)
 }
 
 /// Process-liveness of a session's pane: whether its command has exited and, if
