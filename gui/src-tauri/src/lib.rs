@@ -20,8 +20,26 @@ use tauri::{AppHandle, Emitter, State};
 struct WatcherState(Mutex<Option<RecommendedWatcher>>);
 
 /// The iudex binary to invoke: $IUDEX_BIN if set, else `iudex` from PATH.
-fn iudex_bin() -> String {
+pub(crate) fn iudex_bin() -> String {
     std::env::var("IUDEX_BIN").unwrap_or_else(|_| "iudex".to_string())
+}
+
+/// Run an arbitrary `iudex` subcommand in the workspace and return its stdout.
+/// This is the GUI's write path: every state mutation (activate, finish, qa,
+/// human-qa, retry, remove) shells out to the CLI so the state machine stays
+/// single-sourced there. The events.jsonl doorbell then refreshes the read
+/// path on its own — callers don't re-read explicitly.
+#[tauri::command]
+fn run_iudex(root: String, args: Vec<String>) -> Result<String, String> {
+    let out = Command::new(iudex_bin())
+        .args(&args)
+        .current_dir(&root)
+        .output()
+        .map_err(|e| format!("failed to run {}: {e}", iudex_bin()))?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
 /// Walk up from `start` looking for `.iudex/config.yml`, returning the workspace
@@ -111,8 +129,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             discover_workspace,
             iudex_status,
+            run_iudex,
             watch_workspace,
             tmux::tmux_available,
+            tmux::spawn_agent,
             tmux::list_sessions,
             tmux::create_shell,
             tmux::kill_session,

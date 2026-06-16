@@ -462,6 +462,39 @@ body {
   padding: 24px;
 }
 
+.tickets .actions {
+  display: flex;
+  gap: 6px;
+}
+
+.tickets .actions button {
+  padding: 3px 10px;
+  border: 1px solid #3a3b3f;
+  border-radius: 6px;
+  background: #2d6cdf;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.tickets .actions button:hover:not(:disabled) {
+  background: #3a78e6;
+}
+
+.tickets .actions button.ghost {
+  background: transparent;
+  color: #9db4e0;
+}
+
+.tickets .actions button.ghost:hover:not(:disabled) {
+  background: #2a2b30;
+}
+
+.tickets .actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .state {
   display: inline-block;
   padding: 2px 8px;

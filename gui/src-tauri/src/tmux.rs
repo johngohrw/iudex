@@ -116,6 +116,42 @@ pub fn create_shell() -> Result<Session, String> {
     parse_session(&name).ok_or_else(|| "internal: bad session name".to_string())
 }
 
+/// Launch (or relaunch) the agent for a ticket into the pool. Captures the
+/// spawn command iudex prints for the ticket's *current* state (`iudex spawn`
+/// — impl while active, QA once pending-qa), then runs it inside a fresh
+/// `iudex-agent-<id>` tmux session. This is the deliberate bridge: iudex only
+/// prints the command, the GUI is the hand that runs it. Any existing session
+/// for the ticket is replaced so the agent always matches the ticket's state.
+#[tauri::command]
+pub fn spawn_agent(root: String, id: String) -> Result<Session, String> {
+    let out = Command::new(crate::iudex_bin())
+        .args(["spawn", &id])
+        .current_dir(&root)
+        .output()
+        .map_err(|e| format!("iudex spawn: {e}"))?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    let cmd = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if cmd.is_empty() {
+        return Err("iudex spawn produced no command".to_string());
+    }
+
+    let name = format!("{PREFIX}agent-{id}");
+    // Replace any prior agent session for this ticket (e.g. impl → QA).
+    let _ = Command::new("tmux")
+        .args(["kill-session", "-t", &name])
+        .status();
+    let st = Command::new("tmux")
+        .args(["new-session", "-d", "-s", &name, &cmd])
+        .status()
+        .map_err(|e| format!("tmux new-session: {e}"))?;
+    if !st.success() {
+        return Err("tmux new-session failed".to_string());
+    }
+    parse_session(&name).ok_or_else(|| "internal: bad session name".to_string())
+}
+
 /// Kill a pool session (refusing anything outside our prefix). This ends the
 /// session for real — used by the explicit "kill" action, not by tab close.
 #[tauri::command]

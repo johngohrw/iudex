@@ -94,7 +94,7 @@ export default function App() {
 
           <section className="view">
             {view === "dashboard" && <Dashboard ws={ws} onJump={setView} />}
-            {view === "tickets" && <Tickets ws={ws} />}
+            {view === "tickets" && <Tickets ws={ws} root={root} />}
             {view === "terminal" && (
               <Terminal
                 focus={focusSession}
