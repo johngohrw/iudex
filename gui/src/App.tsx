@@ -7,6 +7,7 @@ import Tickets from "./views/Tickets";
 import Terminal from "./views/Terminal";
 import Agents from "./views/Agents";
 import Worktrees from "./views/Worktrees";
+import Review from "./views/Review";
 import Stub from "./views/Stub";
 import "./App.css";
 
@@ -22,6 +23,8 @@ export default function App() {
   const [view, setView] = useState<View>("dashboard");
   // Set when another view (an agent peek) asks Terminal to focus a session.
   const [focusSession, setFocusSession] = useState<string | null>(null);
+  // Set when the Dashboard opens a specific ticket straight into Review.
+  const [focusTicket, setFocusTicket] = useState<string | null>(null);
 
   // The sole read path: re-run `iudex status --json` and replace local view.
   const load = useCallback(async (r: string) => {
@@ -94,7 +97,16 @@ export default function App() {
           </nav>
 
           <section className="view">
-            {view === "dashboard" && <Dashboard ws={ws} onJump={setView} />}
+            {view === "dashboard" && (
+              <Dashboard
+                ws={ws}
+                onJump={setView}
+                onOpenReview={(id) => {
+                  setFocusTicket(id);
+                  setView("review");
+                }}
+              />
+            )}
             {view === "tickets" && (
               <Tickets
                 ws={ws}
@@ -137,9 +149,15 @@ export default function App() {
               />
             )}
             {view === "review" && (
-              <Stub
-                title="Review"
-                blurb="A deep-review workspace for pending-human-qa items: brief + QA review + diff, with a preflighted approve & merge."
+              <Review
+                ws={ws}
+                root={root}
+                focusTicket={focusTicket}
+                onFocusHandled={() => setFocusTicket(null)}
+                onOpenInTerminal={(name) => {
+                  setFocusSession(name);
+                  setView("terminal");
+                }}
               />
             )}
             {view === "settings" && (

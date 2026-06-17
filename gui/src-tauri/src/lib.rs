@@ -219,12 +219,33 @@ struct FileChange {
 /// (two-dot) captures tracked changes including uncommitted ones — agents commit
 /// late, so the worktree is usually dirty; `ls-files --others` folds in the rest.
 #[tauri::command]
-fn worktree_changes(worktree: String, main_branch: String) -> Result<Vec<FileChange>, String> {
+fn worktree_changes(
+    worktree: String,
+    main_branch: String,
+    three_dot: Option<bool>,
+) -> Result<Vec<FileChange>, String> {
     use std::collections::BTreeMap;
+
+    let (base, target, include_untracked) = diff_base(&worktree, &main_branch, three_dot);
+    // `git diff <base> [target]`: two-dot vs the working tree (Worktrees), or
+    // base..HEAD i.e. three-dot vs the merge-base (Review).
+    let diff_args = |flag: &str| {
+        let mut a = vec![
+            "-C".to_string(),
+            worktree.clone(),
+            "diff".to_string(),
+            flag.to_string(),
+            base.clone(),
+        ];
+        if let Some(t) = &target {
+            a.push(t.clone());
+        }
+        a
+    };
 
     // name-status: the change letter per path.
     let out = Command::new("git")
-        .args(["-C", &worktree, "diff", "--name-status", &main_branch])
+        .args(diff_args("--name-status"))
         .output()
         .map_err(|e| format!("git diff --name-status: {e}"))?;
     if !out.status.success() {
@@ -247,10 +268,7 @@ fn worktree_changes(worktree: String, main_branch: String) -> Result<Vec<FileCha
 
     // numstat: per-path additions/deletions for the same diff.
     let mut counts: BTreeMap<String, (u32, u32)> = BTreeMap::new();
-    if let Ok(out) = Command::new("git")
-        .args(["-C", &worktree, "diff", "--numstat", &main_branch])
-        .output()
-    {
+    if let Ok(out) = Command::new("git").args(diff_args("--numstat")).output() {
         for line in String::from_utf8_lossy(&out.stdout).lines() {
             let mut cols = line.split('\t');
             let add = cols.next().unwrap_or("-").parse::<u32>().ok();
@@ -261,17 +279,20 @@ fn worktree_changes(worktree: String, main_branch: String) -> Result<Vec<FileCha
         }
     }
 
-    // Untracked files (respecting .gitignore).
-    if let Ok(out) = Command::new("git")
-        .args(["-C", &worktree, "ls-files", "--others", "--exclude-standard"])
-        .output()
-    {
-        for path in String::from_utf8_lossy(&out.stdout).lines() {
-            if path.is_empty() || status.contains_key(path) {
-                continue;
+    // Untracked files (respecting .gitignore) — only for the working-tree (two-
+    // dot) view; the three-dot authored diff is committed-only.
+    if include_untracked {
+        if let Ok(out) = Command::new("git")
+            .args(["-C", &worktree, "ls-files", "--others", "--exclude-standard"])
+            .output()
+        {
+            for path in String::from_utf8_lossy(&out.stdout).lines() {
+                if path.is_empty() || status.contains_key(path) {
+                    continue;
+                }
+                order.push(path.to_string());
+                status.insert(path.to_string(), "U".to_string());
             }
-            order.push(path.to_string());
-            status.insert(path.to_string(), "U".to_string());
         }
     }
 
@@ -291,9 +312,35 @@ fn worktree_changes(worktree: String, main_branch: String) -> Result<Vec<FileCha
         .collect())
 }
 
+/// Resolve the diff base for a worktree view. Two-dot (Worktrees): base is
+/// `main_branch` and the target is the working tree, so uncommitted edits show.
+/// Three-dot (Review): base is the merge-base of main and HEAD and the target is
+/// HEAD, so it shows only what the ticket *authored* (matching the CLI's
+/// `git.Diff` = `base...HEAD`). Returns (base, target, include_untracked).
+fn diff_base(
+    worktree: &str,
+    main_branch: &str,
+    three_dot: Option<bool>,
+) -> (String, Option<String>, bool) {
+    if three_dot.unwrap_or(false) {
+        let mb = Command::new("git")
+            .args(["-C", worktree, "merge-base", main_branch, "HEAD"])
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| main_branch.to_string());
+        (mb, Some("HEAD".to_string()), false)
+    } else {
+        (main_branch.to_string(), None, true)
+    }
+}
+
 /// Base vs head content for one file, fed to the Monaco diff viewer. `original`
-/// is the file at `main_branch` (empty for an added file); `modified` is the
-/// worktree's current working-tree content (empty for a deleted file).
+/// is the file at the diff base (empty for an added file); `modified` is the
+/// head content (empty for a deleted file) — the working tree in two-dot mode,
+/// or HEAD in three-dot mode.
 #[derive(serde::Serialize)]
 struct FileDiff {
     original: String,
@@ -306,18 +353,27 @@ fn worktree_file_diff(
     worktree: String,
     path: String,
     main_branch: String,
+    three_dot: Option<bool>,
 ) -> Result<FileDiff, String> {
-    // Base content from main; absent (added file) → empty, not an error.
-    let original = Command::new("git")
-        .args(["-C", &worktree, "show", &format!("{main_branch}:{path}")])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-        .unwrap_or_default();
+    let (base, target, _) = diff_base(&worktree, &main_branch, three_dot);
 
-    // Head content from the working tree; absent (deleted file) → empty.
-    let modified = std::fs::read_to_string(Path::new(&worktree).join(&path)).unwrap_or_default();
+    let show = |rev: &str| {
+        Command::new("git")
+            .args(["-C", &worktree, "show", &format!("{rev}:{path}")])
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+            .unwrap_or_default()
+    };
+
+    // Base content at the diff base; absent (added file) → empty, not an error.
+    let original = show(&base);
+    // Head content: HEAD blob in three-dot mode, else the working-tree file.
+    let modified = match &target {
+        Some(rev) => show(rev),
+        None => std::fs::read_to_string(Path::new(&worktree).join(&path)).unwrap_or_default(),
+    };
 
     Ok(FileDiff {
         original,
@@ -357,6 +413,187 @@ fn language_for(path: &str) -> String {
         _ => "",
     };
     lang.to_string()
+}
+
+/// The `.task/` docs for a ticket, read straight from its worktree — the same
+/// files `iudex review` prints, surfaced structured for the Review workspace.
+#[derive(serde::Serialize)]
+struct TaskDocs {
+    brief: String,
+    log: String,
+    review: String,
+}
+
+#[tauri::command]
+fn worktree_task_docs(worktree: String) -> Result<TaskDocs, String> {
+    let read = |name: &str| {
+        std::fs::read_to_string(Path::new(&worktree).join(".task").join(name)).unwrap_or_default()
+    };
+    Ok(TaskDocs {
+        brief: read("brief.md"),
+        log: read("log.md"),
+        review: read("review.md"),
+    })
+}
+
+/// The merge-preflight for Review — predicts, ahead of time, whether
+/// `iudex human-qa approve` would succeed, so the merge only ever fires when
+/// guaranteed to. Mirrors the CLI's two approve gates (root on main_branch +
+/// clean) and adds a zero-side-effect conflict prediction via `git merge-tree`.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Preflight {
+    current_branch: String,
+    on_main: bool,
+    clean: bool,
+    dirty_files: Vec<String>,
+    would_conflict: bool,
+    conflict_files: Vec<String>,
+    merge_in_progress: bool,
+    ready: bool,
+}
+
+#[tauri::command]
+fn merge_preflight(
+    root: String,
+    worktree: String,
+    main_branch: String,
+) -> Result<Preflight, String> {
+    // The ticket's work branch is just whatever its worktree has checked out, so
+    // the frontend needn't reconstruct `branch_prefix + id`.
+    let work_branch = Command::new("git")
+        .args(["-C", &worktree, "rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .map_err(|e| format!("git rev-parse (worktree): {e}"))?;
+    let work_branch = String::from_utf8_lossy(&work_branch.stdout).trim().to_string();
+
+    // Gate 1: is the repo root on main_branch?
+    let current_branch = Command::new("git")
+        .args(["-C", &root, "rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .map_err(|e| format!("git rev-parse: {e}"))?;
+    let current_branch = String::from_utf8_lossy(&current_branch.stdout).trim().to_string();
+    let on_main = current_branch == main_branch;
+
+    // Gate 2: is the root clean?
+    let status = Command::new("git")
+        .args(["-C", &root, "status", "--porcelain"])
+        .output()
+        .map_err(|e| format!("git status: {e}"))?;
+    let dirty_files: Vec<String> = String::from_utf8_lossy(&status.stdout)
+        .lines()
+        .filter_map(|l| {
+            let l = l.trim_end();
+            (l.len() > 3).then(|| l[3..].to_string())
+        })
+        .collect();
+    let clean = dirty_files.is_empty();
+
+    // Gate 3: would the merge conflict? `merge-tree --write-tree` does the whole
+    // merge in-memory (no worktree/index touched): exit 0 = clean, exit 1 =
+    // conflict with the conflicting paths on stdout (NUL-separated via -z).
+    let mt = Command::new("git")
+        .args([
+            "-C",
+            &root,
+            "merge-tree",
+            "--write-tree",
+            "-z",
+            "--name-only",
+            &main_branch,
+            &work_branch,
+        ])
+        .output()
+        .map_err(|e| format!("git merge-tree: {e}"))?;
+    let conflict_exit = !mt.status.success();
+    let mut conflict_files = Vec::new();
+    if conflict_exit {
+        // Output is NUL-separated sections: <tree-oid>\0 then the conflicted
+        // file names, each NUL-terminated, before an informational-messages
+        // section. We take the file-name run that follows the OID.
+        let raw = String::from_utf8_lossy(&mt.stdout);
+        let mut parts = raw.split('\0');
+        let _oid = parts.next(); // first field is the resulting tree OID
+        for p in parts {
+            // The messages section starts after a blank field; stop there.
+            if p.is_empty() {
+                break;
+            }
+            conflict_files.push(p.to_string());
+        }
+    }
+
+    // A merge already underway in the worktree (after Begin resolution).
+    let merge_in_progress = Command::new("git")
+        .args(["-C", &worktree, "rev-parse", "-q", "--verify", "MERGE_HEAD"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+
+    let ready = on_main && clean && !conflict_exit && !merge_in_progress;
+    Ok(Preflight {
+        current_branch,
+        on_main,
+        clean,
+        dirty_files,
+        would_conflict: conflict_exit,
+        conflict_files,
+        merge_in_progress,
+        ready,
+    })
+}
+
+/// Begin conflict resolution in a worktree: `git merge <main>` there, which
+/// materializes conflict markers for the user to edit. iudex itself never leaves
+/// a conflicted tree, so this is the GUI's opt-in convenience. Guarded: refuses
+/// if the worktree is dirty or a merge is already underway. Returns whether the
+/// merge produced conflicts (false ⇒ it merged cleanly, nothing to resolve).
+#[tauri::command]
+fn begin_resolution(worktree: String, main_branch: String) -> Result<bool, String> {
+    let dirty = Command::new("git")
+        .args(["-C", &worktree, "status", "--porcelain"])
+        .output()
+        .map(|o| !o.stdout.is_empty())
+        .unwrap_or(false);
+    if dirty {
+        return Err("worktree has uncommitted changes — commit or stash them first".into());
+    }
+    let in_progress = Command::new("git")
+        .args(["-C", &worktree, "rev-parse", "-q", "--verify", "MERGE_HEAD"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if in_progress {
+        return Err("a merge is already in progress in this worktree".into());
+    }
+    let out = Command::new("git")
+        .args(["-C", &worktree, "merge", &main_branch])
+        .output()
+        .map_err(|e| format!("git merge: {e}"))?;
+    // A non-zero exit here is the expected "merge left conflicts" case, not an
+    // error; only a genuinely missing merge (e.g. bad ref) is surfaced.
+    if !out.status.success() {
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        if combined.contains("CONFLICT") || combined.contains("Automatic merge failed") {
+            return Ok(true);
+        }
+        return Err(combined.trim().to_string());
+    }
+    Ok(false)
+}
+
+/// Abort an in-progress resolution merge in a worktree, restoring it.
+#[tauri::command]
+fn abort_resolution(worktree: String) -> Result<(), String> {
+    Command::new("git")
+        .args(["-C", &worktree, "merge", "--abort"])
+        .status()
+        .map_err(|e| format!("git merge --abort: {e}"))?;
+    Ok(())
 }
 
 /// Open a file in the user's GUI editor — an escape hatch out of the read-only
@@ -427,6 +664,10 @@ pub fn run() {
             list_worktrees,
             worktree_changes,
             worktree_file_diff,
+            worktree_task_docs,
+            merge_preflight,
+            begin_resolution,
+            abort_resolution,
             open_in_editor,
             watch_workspace,
             tmux::tmux_available,

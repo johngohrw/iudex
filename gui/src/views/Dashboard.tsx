@@ -8,9 +8,11 @@ import type { View, Workspace } from "../types";
 export default function Dashboard({
   ws,
   onJump,
+  onOpenReview,
 }: {
   ws: Workspace;
   onJump: (v: View) => void;
+  onOpenReview: (id: string) => void;
 }) {
   const activeCount = ws.tickets.filter((t) => t.state === "active").length;
   const atCapacity = ws.maxActive > 0 && activeCount >= ws.maxActive;
@@ -39,6 +41,7 @@ export default function Dashboard({
         hint="awaiting your judgment"
         tickets={pendingReview}
         onClick={() => onJump("review")}
+        onItem={onOpenReview}
         accent="review"
         emptyText="nothing to review"
       />
@@ -66,6 +69,7 @@ function Pile({
   hint,
   tickets,
   onClick,
+  onItem,
   emptyText,
   accent,
   muted,
@@ -74,6 +78,7 @@ function Pile({
   hint: string;
   tickets: { id: string; state: string }[];
   onClick: () => void;
+  onItem?: (id: string) => void;
   emptyText: string;
   accent?: "review" | "failed";
   muted?: boolean;
@@ -93,7 +98,14 @@ function Pile({
             <li
               key={t.id}
               className={muted ? "muted" : ""}
-              onClick={onClick}
+              onClick={(e) => {
+                if (onItem) {
+                  e.stopPropagation();
+                  onItem(t.id);
+                } else {
+                  onClick();
+                }
+              }}
               title="open"
             >
               <span className="id">{t.id}</span>

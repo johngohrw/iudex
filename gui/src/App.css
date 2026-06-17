@@ -920,3 +920,267 @@ body {
   flex: 1;
   min-height: 0;
 }
+
+/* Review view */
+.rv {
+  display: flex;
+  gap: 10px;
+  height: calc(100vh - 150px);
+}
+
+.rv-empty {
+  color: #8a8a90;
+  padding: 20px 4px;
+}
+
+.rv-rail {
+  width: 200px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border: 1px solid #3a3b3f;
+  border-radius: 8px;
+  background: #202125;
+  padding: 6px;
+}
+
+.rv-rail-head {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9a9aa0;
+  padding: 4px 6px 8px;
+}
+
+.rv-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #e6e6e6;
+  cursor: pointer;
+  text-align: left;
+}
+
+.rv-item:hover {
+  background: #2a2b30;
+}
+
+.rv-item.active {
+  background: #16171a;
+  border-color: #2d6cdf;
+}
+
+.rv-item-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.rv-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rv-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rv-head-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.rv-ready.ok {
+  color: #8fd6a4;
+  font-weight: 600;
+}
+
+.rv-blocked {
+  flex: 1;
+  min-width: 0;
+}
+
+.rv-gate {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid #3a341f;
+  border-radius: 6px;
+  background: #221f16;
+  margin-bottom: 4px;
+}
+
+.rv-gate-msg {
+  color: #e0cf8f;
+  font-size: 13px;
+}
+
+.rv-conflicts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.rv-conflict {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  padding: 2px 8px;
+  border: 1px solid #5a4b2b;
+  border-radius: 6px;
+  background: transparent;
+  color: #e0cf8f;
+  cursor: pointer;
+}
+
+.rv-conflict:hover {
+  background: #2a2519;
+}
+
+.wt-esc.danger {
+  color: #e09b8f;
+}
+
+.wt-esc.danger:hover {
+  background: #2a1d1d;
+}
+
+.wt-esc:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.rv-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+}
+
+.rv-docs {
+  width: 38%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #3a3b3f;
+  border-radius: 8px;
+  background: #202125;
+  overflow: hidden;
+}
+
+.rv-doctabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 6px 0;
+  border-bottom: 1px solid #3a3b3f;
+}
+
+.rv-doctab {
+  padding: 6px 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #9a9aa0;
+  cursor: pointer;
+  font-size: 13px;
+  text-transform: capitalize;
+}
+
+.rv-doctab.active {
+  color: #e6e6e6;
+  border-bottom-color: #2d6cdf;
+}
+
+.rv-doc {
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #c8c8ce;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.rv-diffwrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rv-filelist {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.rv-diff {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid #3a3b3f;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #16171a;
+}
+
+.rv-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.rv-reject,
+.rv-approve {
+  padding: 7px 18px;
+  border: 1px solid #3a3b3f;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.rv-reject {
+  background: transparent;
+  color: #e09b8f;
+}
+
+.rv-reject:hover:not(:disabled) {
+  background: #2a1d1d;
+}
+
+.rv-approve {
+  background: #2f8f4e;
+  color: white;
+  border-color: #2f8f4e;
+}
+
+.rv-approve:hover:not(:disabled) {
+  background: #36a259;
+}
+
+.rv-approve:disabled,
+.rv-reject:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

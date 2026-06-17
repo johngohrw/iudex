@@ -44,6 +44,26 @@ export interface FileDiff {
   language: string;
 }
 
+// The `.task/` docs for a ticket (from `worktree_task_docs`).
+export interface TaskDocs {
+  brief: string;
+  log: string;
+  review: string;
+}
+
+// The merge-preflight for a pending-human-qa ticket (from `merge_preflight`):
+// predicts whether `iudex human-qa approve` would succeed.
+export interface Preflight {
+  currentBranch: string;
+  onMain: boolean;
+  clean: boolean;
+  dirtyFiles: string[];
+  wouldConflict: boolean;
+  conflictFiles: string[];
+  mergeInProgress: boolean;
+  ready: boolean;
+}
+
 // A session in the unified tmux pool, mirroring the Rust `Session` struct.
 export interface Session {
   name: string;
