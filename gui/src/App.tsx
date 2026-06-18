@@ -184,15 +184,7 @@ export default function App() {
                 onFocusHandled={() => setFocusSession(null)}
               />
             </div>
-            {view === "agents" && (
-              <Agents
-                ws={ws}
-                onOpenInTerminal={(name) => {
-                  setFocusSession(name);
-                  setView("terminal");
-                }}
-              />
-            )}
+            {view === "agents" && <Agents ws={ws} />}
             {view === "worktrees" && (
               <Worktrees
                 ws={ws}

@@ -979,6 +979,27 @@ struct RailCard {
     badge: String,
 }
 
+/// A worktree's ticket title (for the Agents rail), keyed by worktree path.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorktreeTitle {
+    worktree: String,
+    title: String,
+}
+
+/// Batch ticket titles for a set of worktrees — the Agents list needs a title per
+/// agent without the merge-badge work that `rail_status` does.
+#[tauri::command]
+fn brief_titles(worktrees: Vec<String>) -> Vec<WorktreeTitle> {
+    worktrees
+        .into_iter()
+        .map(|worktree| WorktreeTitle {
+            title: brief_title(&worktree),
+            worktree,
+        })
+        .collect()
+}
+
 /// First non-empty, non-heading line of a worktree's brief — the ticket title.
 fn brief_title(worktree: &str) -> String {
     let text = std::fs::read_to_string(Path::new(worktree).join(".task").join("brief.md"))
@@ -1116,6 +1137,7 @@ pub fn run() {
             reveal_in_finder,
             open_folder_with,
             rail_status,
+            brief_titles,
             watch_workspace,
             tmux::tmux_available,
             tmux::spawn_agent,

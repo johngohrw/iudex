@@ -335,15 +335,104 @@ body {
   border-radius: 6px;
 }
 
-/* Agents grid */
-.agents-toolbar {
+/* Agents view — master-detail (mirrors .rv). */
+.ag {
+  display: flex;
+  gap: 10px;
+  height: 100%;
+}
+
+.ag-rail {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #3a3b3f;
+  border-radius: 8px;
+  background: #202125;
+}
+
+.ag-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.ag-empty {
+  padding: 12px 8px;
+  font-size: 13px;
+}
+
+.ag-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #e6e6e6;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ag-card:hover {
+  background: #2a2b30;
+}
+
+.ag-card.active {
+  background: #16171a;
+  border-color: #2d6cdf;
+}
+
+.ag-card-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ag-card-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.ag-card-title {
+  font-size: 12px;
+  color: #c8c8ce;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ag-card-bot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  gap: 6px;
 }
 
-.agents-toolbar button.ghost {
+.ag-card-role {
+  font-size: 12px;
+  color: #9a9aa0;
+}
+
+.ag-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid #3a3b3f;
+  flex-shrink: 0;
+}
+
+.ag-foot button.ghost {
   padding: 4px 12px;
   border: 1px solid #3a3b3f;
   border-radius: 6px;
@@ -353,55 +442,153 @@ body {
   font-size: 12px;
 }
 
-.agents-toolbar button.ghost:hover {
+.ag-foot button.ghost:hover {
   background: #2a2b30;
 }
 
-.agents {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 14px;
+.ag-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
 }
 
-.peek {
-  border: 1px solid #3a3b3f;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #16171a;
-  cursor: pointer;
-}
-
-.peek:hover {
-  border-color: #2d6cdf;
-}
-
-.peek-head {
+.ag-detail-empty {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  background: #202125;
-  border-bottom: 1px solid #3a3b3f;
+  justify-content: center;
 }
 
-.peek-title {
+.ag-detail {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #3a3b3f;
+  border-radius: 8px;
+  background: #202125;
+  overflow: hidden;
+}
+
+.ag-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #3a3b3f;
+  flex-shrink: 0;
+}
+
+.ag-head-info {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ag-head-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-weight: 600;
+  font-size: 15px;
+}
+
+.ag-head-role {
+  font-size: 13px;
+  color: #9db4e0;
+}
+
+.ag-head-title {
+  font-size: 13px;
+  color: #c8c8ce;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ag-head-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.ag-x {
+  border: none;
+  background: transparent;
+  color: #9a9aa0;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.ag-x:hover {
+  background: #2a2b30;
+  color: #e6e6e6;
+}
+
+.ag-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  border-bottom: 1px solid #3a3b3f;
+  flex-shrink: 0;
+}
+
+.ag-tab {
+  padding: 8px 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #9a9aa0;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.ag-tab.active {
+  color: #e6e6e6;
+  border-bottom-color: #2d6cdf;
+}
+
+.ag-tabs-spacer {
   flex: 1;
 }
 
-.peek-kill {
-  border: 1px solid #3a3b3f;
-  background: transparent;
-  color: #9a9aa0;
-  border-radius: 6px;
-  padding: 2px 8px;
-  cursor: pointer;
-  font-size: 12px;
+.ag-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding: 10px;
 }
 
-.peek-kill:hover {
-  color: #e09b8f;
-  border-color: #5a2b2b;
+.ag-console {
+  flex: 1;
+  min-height: 0;
+}
+
+.ag-pad {
+  flex: 1;
+  padding: 14px 16px;
+  overflow-y: auto;
+}
+
+.ag-ticket {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ag-kv {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.ag-kv > span:first-child {
+  width: 90px;
+  color: #9a9aa0;
 }
 
 .agent-status {
@@ -435,19 +622,6 @@ body {
 .status-done {
   background: #233a36;
   color: #8fd6cb;
-}
-
-.peek-screen {
-  margin: 0;
-  padding: 8px 10px;
-  height: 200px;
-  overflow: hidden;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  line-height: 1.35;
-  color: #c8c8ce;
-  white-space: pre-wrap;
-  word-break: break-all;
 }
 
 /* Settings view: fills the view; the subtab strip is a fixed header and only the
