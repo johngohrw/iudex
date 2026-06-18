@@ -14,7 +14,11 @@ body {
 }
 
 .app {
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
   padding: 16px;
 }
 
@@ -23,6 +27,7 @@ body {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  flex-shrink: 0;
   margin-bottom: 16px;
 }
 
@@ -67,6 +72,7 @@ body {
 .error {
   padding: 10px 12px;
   margin-bottom: 12px;
+  flex-shrink: 0;
   border: 1px solid #5a2b2b;
   border-radius: 6px;
   background: #2a1d1d;
@@ -81,6 +87,7 @@ body {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
+  flex-shrink: 0;
   padding: 12px 14px;
   margin-bottom: 12px;
   border: 1px solid #2a3a4a;
@@ -122,6 +129,7 @@ body {
 .nav {
   display: flex;
   gap: 2px;
+  flex-shrink: 0;
   margin-bottom: 16px;
   border-bottom: 1px solid #3a3b3f;
 }
@@ -146,7 +154,14 @@ body {
 }
 
 .view {
-  min-height: 200px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Terminal stays mounted across views; its wrapper must fill the scroll area. */
+.view-host {
+  height: 100%;
 }
 
 /* Dashboard piles */
@@ -234,7 +249,7 @@ body {
 .term {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 150px);
+  height: 100%;
 }
 
 .term-tabs {
@@ -433,6 +448,224 @@ body {
   color: #c8c8ce;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* Settings view: fills the view; the subtab strip is a fixed header and only the
+   body below it scrolls (so the scrollbar stays within the content). */
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  height: 100%;
+}
+
+/* Secondary tab strip within Settings (General / Prompts) — a fixed header. */
+.subtabs {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  border-bottom: 1px solid #3a3b3f;
+}
+
+/* The scrollable body below the subtabs. */
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 24px;
+}
+
+.subtab {
+  padding: 7px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #9a9aa0;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.subtab:hover {
+  color: #e6e6e6;
+}
+
+.subtab.active {
+  color: #e6e6e6;
+  border-bottom-color: #2d6cdf;
+}
+
+/* Numeric / enum fields don't need to span the full width. */
+.field.narrow input,
+.field.narrow select {
+  max-width: 220px;
+}
+
+.settings-divider {
+  height: 1px;
+  background: #3a3b3f;
+  margin: 6px 0;
+}
+
+/* Advanced-settings toggle */
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.switch input {
+  display: none;
+}
+
+.switch-track {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  background: #3a3b3f;
+  transition: background 0.15s;
+}
+
+.switch input:checked + .switch-track {
+  background: #2d6cdf;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #e6e6e6;
+  transition: transform 0.15s;
+}
+
+.switch input:checked + .switch-track .switch-thumb {
+  transform: translateX(16px);
+}
+
+.switch-label {
+  font-size: 13px;
+  color: #cdd2da;
+}
+
+.settings-loading {
+  color: #8a8a90;
+  padding: 20px 4px;
+}
+
+.settings-card {
+  border: 1px solid #3a3b3f;
+  border-radius: 8px;
+  background: #202125;
+  padding: 16px 18px;
+}
+
+.settings-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.settings-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.settings-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: #7a7a80;
+}
+
+.settings-hint {
+  color: #8a8a90;
+  font-size: 13px;
+  margin: -6px 0 12px;
+}
+
+.settings-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.settings-row .field {
+  flex: 1;
+  min-width: 130px;
+}
+
+.field-note {
+  color: #7a7a80;
+  font-size: 12px;
+}
+
+.field-note.caution {
+  color: #c4a24c;
+}
+
+.field-note code,
+.settings-hint code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #cdd2da;
+}
+
+.settings-prompt {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #3a3b3f;
+  border-radius: 6px;
+  background: #16171a;
+  color: #e6e6e6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.settings-actions button {
+  padding: 7px 16px;
+  border: 1px solid #2d6cdf;
+  border-radius: 6px;
+  background: #2d6cdf;
+  color: white;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.settings-actions button:hover:not(:disabled) {
+  background: #3a78e6;
+}
+
+.settings-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.saved-ok {
+  color: #8fd6a4;
+  font-size: 13px;
+}
+
+.saved-err {
+  color: #e09b8f;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* Stub views */
@@ -716,7 +949,7 @@ body {
 .wt {
   display: flex;
   gap: 10px;
-  height: calc(100vh - 150px);
+  height: 100%;
 }
 
 .wt-empty,
@@ -969,7 +1202,7 @@ body {
 .rv {
   display: flex;
   gap: 10px;
-  height: calc(100vh - 150px);
+  height: 100%;
 }
 
 .rv-empty {

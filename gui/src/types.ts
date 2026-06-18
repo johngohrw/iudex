@@ -64,6 +64,17 @@ export interface Preflight {
   ready: boolean;
 }
 
+// The editable `.iudex/config.yml` fields (from `read_config`/`write_config`).
+export interface Config {
+  mainBranch: string;
+  maxActive: number;
+  qaRejectLimit: number;
+  agentCommand: string;
+  mergeStrategy: string;
+  mergeMessageTemplate: string;
+  branchPrefix: string;
+}
+
 // A session in the unified tmux pool, mirroring the Rust `Session` struct.
 export interface Session {
   name: string;

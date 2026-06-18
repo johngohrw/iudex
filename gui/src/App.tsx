@@ -8,7 +8,7 @@ import Terminal from "./views/Terminal";
 import Agents from "./views/Agents";
 import Worktrees from "./views/Worktrees";
 import Review from "./views/Review";
-import Stub from "./views/Stub";
+import Settings from "./views/Settings";
 import "./App.css";
 
 // Convenience default for local dev; paste any workspace path.
@@ -216,10 +216,7 @@ export default function App() {
               />
             )}
             {view === "settings" && (
-              <Stub
-                title="Settings"
-                blurb="Edit config.yml fields and the impl/review prompt templates."
-              />
+              <Settings root={root} onConfigSaved={() => load(root)} />
             )}
           </section>
         </>

@@ -86,6 +86,120 @@ fn init_workspace(path: String) -> Result<String, String> {
     Ok(canon.to_string_lossy().into_owned())
 }
 
+/// The editable `.iudex/config.yml` fields, surfaced to the Settings view. Read
+/// and written directly (not via the CLI — config editing isn't state-machine
+/// logic); writes are surgical so the file's comments survive.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Config {
+    main_branch: String,
+    max_active: i64,
+    qa_reject_limit: i64,
+    agent_command: String,
+    merge_strategy: String,
+    merge_message_template: String,
+    branch_prefix: String,
+}
+
+fn config_path(root: &str) -> std::path::PathBuf {
+    Path::new(root).join(".iudex").join("config.yml")
+}
+
+/// Pull a top-level `key: value` scalar from raw YAML, ignoring comment lines and
+/// trimming surrounding quotes. Good enough for iudex's flat, scalar config.
+fn yaml_scalar<'a>(text: &'a str, key: &str) -> Option<&'a str> {
+    for line in text.lines() {
+        let t = line.trim_start();
+        if t.starts_with('#') {
+            continue;
+        }
+        if let Some(rest) = t.strip_prefix(&format!("{key}:")) {
+            return Some(rest.trim().trim_matches('"').trim_matches('\''));
+        }
+    }
+    None
+}
+
+#[tauri::command]
+fn read_config(root: String) -> Result<Config, String> {
+    let text = std::fs::read_to_string(config_path(&root))
+        .map_err(|e| format!("read config.yml: {e}"))?;
+    let s = |k: &str| yaml_scalar(&text, k).unwrap_or("").to_string();
+    let n = |k: &str| yaml_scalar(&text, k).and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
+    Ok(Config {
+        main_branch: s("main_branch"),
+        max_active: n("max_active"),
+        qa_reject_limit: n("qa_reject_limit"),
+        agent_command: s("agent_command"),
+        merge_strategy: s("merge_strategy"),
+        merge_message_template: s("merge_message_template"),
+        branch_prefix: s("branch_prefix"),
+    })
+}
+
+/// Rewrite each known key's value line in place (preserving comments, blank
+/// lines, ordering, and any unknown keys); append any key not already present.
+/// String values are double-quoted (escaping `"`); numbers/enums are bare.
+#[tauri::command]
+fn write_config(root: String, config: Config) -> Result<(), String> {
+    let path = config_path(&root);
+    let text = std::fs::read_to_string(&path).map_err(|e| format!("read config.yml: {e}"))?;
+
+    let q = |v: &str| format!("\"{}\"", v.replace('"', "\\\""));
+    // (key, rendered value) for every field we manage.
+    let fields: Vec<(&str, String)> = vec![
+        ("main_branch", q(&config.main_branch)),
+        ("max_active", config.max_active.to_string()),
+        ("qa_reject_limit", config.qa_reject_limit.to_string()),
+        ("agent_command", q(&config.agent_command)),
+        ("merge_strategy", q(&config.merge_strategy)),
+        ("merge_message_template", q(&config.merge_message_template)),
+        ("branch_prefix", q(&config.branch_prefix)),
+    ];
+
+    let mut lines: Vec<String> = text.lines().map(|l| l.to_string()).collect();
+    for (key, val) in &fields {
+        let prefix = format!("{key}:");
+        let found = lines.iter_mut().find(|l| l.trim_start().starts_with(&prefix));
+        match found {
+            Some(line) => {
+                // Preserve any leading indentation (config is flat, so usually none).
+                let indent: String = line.chars().take_while(|c| c.is_whitespace()).collect();
+                *line = format!("{indent}{key}: {val}");
+            }
+            None => lines.push(format!("{key}: {val}")),
+        }
+    }
+    let mut out = lines.join("\n");
+    if text.ends_with('\n') {
+        out.push('\n');
+    }
+    std::fs::write(&path, out).map_err(|e| format!("write config.yml: {e}"))?;
+    Ok(())
+}
+
+/// The path for a named prompt template, guarded to the two known prompts.
+fn prompt_path(root: &str, name: &str) -> Result<std::path::PathBuf, String> {
+    let file = match name {
+        "impl" => "impl.md",
+        "review" => "review.md",
+        _ => return Err(format!("unknown prompt {name:?}")),
+    };
+    Ok(Path::new(root).join(".iudex").join("prompts").join(file))
+}
+
+#[tauri::command]
+fn read_prompt(root: String, name: String) -> Result<String, String> {
+    let path = prompt_path(&root, &name)?;
+    std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))
+}
+
+#[tauri::command]
+fn write_prompt(root: String, name: String, content: String) -> Result<(), String> {
+    let path = prompt_path(&root, &name)?;
+    std::fs::write(&path, content).map_err(|e| format!("write {}: {e}", path.display()))
+}
+
 /// Run `iudex status --json` in `root` and return the parsed JSON. This is the
 /// GUI's sole read path; the state machine stays single-sourced in the CLI.
 #[tauri::command]
@@ -681,6 +795,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             discover_workspace,
             init_workspace,
+            read_config,
+            write_config,
+            read_prompt,
+            write_prompt,
             iudex_status,
             run_iudex,
             compose_ticket,
