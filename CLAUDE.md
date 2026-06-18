@@ -140,7 +140,7 @@ failed --retry-------------------> active  [counter reset]
 | `iudex retry <id>` | failed → active, reset the QA-reject counter |
 | `iudex remove <id>` | Abandon from any non-terminal state → removed |
 | `iudex review <id>` | Read-only: print brief, log, diff, review, state, next actions |
-| `iudex status [--all]` | Tickets grouped by state; queued annotated ready/blocked; done/removed hidden unless `--all` |
+| `iudex status [--all] [--json]` | Tickets grouped by state; queued annotated ready/blocked; done/removed hidden unless `--all`. `--json` emits a machine-readable object (`{mainBranch,maxActive,qaRejectLimit,tickets[]}`, always all tickets) — the GUI's read path |
 
 Worktree-scoped commands (`finish`, `qa`, `spawn`) infer the ticket from the current directory when run inside a worktree; an explicit id always overrides.
 
@@ -154,6 +154,7 @@ iudex/
 ├── main_test.go               # CLI-seam tests (build binary, hermetic git config, drive the pipeline)
 ├── go.mod                     # module: iudex; deps: cobra, yaml.v3
 ├── templates/dot_iudex/       # embedded scaffold (config.yml, prompts/) → .iudex/ on init
+├── gui/                       # native desktop client (Tauri) — a separate in-repo project; see "GUI client" below
 └── internal/
     ├── workspace/             # discovery (walk up for .iudex/config.yml), Config, path helpers, TicketFromCwd
     ├── events/                # append-only events.jsonl: Event, Append (O_APPEND), ReadAll
@@ -213,6 +214,18 @@ go test ./...
 
 - `internal/ticket`, `internal/events` — fast unit tests (replay rules, the qa-reject counter, deps, append/read).
 - `main_test.go` — CLI-seam tests: builds the binary once in `TestMain` with a **hermetic git config** (pinned `init.defaultBranch` + identity via `GIT_CONFIG_GLOBAL`/`GIT_AUTHOR_*`), then drives the pipeline in temp repos and asserts state after each command. Covers the full happy path to `done` (merge, archive, worktree removal), dep-blocking, `max_active`, the qa-reject ladder to `failed`, `retry`, `human-qa reject` feedback, the dirty/off-main approve guards, and `remove`.
+
+---
+
+## GUI client (`gui/`)
+
+A native **Tauri desktop client** that drives this CLI the way a git client drives `git`. It is a **separate in-repo project** (its own build: `cd gui && pnpm tauri dev`), not part of the Go binary. See `gui/README.md` for the full description; the design is `.context/prd/gui-client.md`.
+
+**The core invariant:** the GUI holds **no authoritative state**. It **reads** derived truth via `iudex status --json`, **writes** by shelling every mutation through the `iudex` binary, and watches `.iudex/events.jsonl` as a *doorbell* (re-reads on any change). It never reimplements `Derive` (the state machine stays single-sourced in the CLI), so GUI and CLI cannot diverge. It does own the one thing the CLI won't — **agent process supervision** — via a tmux session pool.
+
+- **The one upstream change it required** is `iudex status --json` (already landed). Git reads it needs (worktree diffs, the merge-preflight via `git merge-tree`) shell `git -C <dir>` directly from the GUI's Rust backend — plain plumbing, not state-machine logic, so they deliberately stay out of the CLI.
+- **Seven views:** Dashboard, Terminal, Tickets, Agents, Worktrees, Review (preflighted approve & merge), Settings.
+- **Status:** built on branch `feat/gui-read-path` (off `main`, not yet merged). The GUI evolves independently; treat `gui/` changes as scoped to that project.
 
 ---
 

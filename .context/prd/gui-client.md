@@ -4,6 +4,29 @@
 >
 > This PRD was hardened through a `grill-me` session (13 resolved decisions). It describes a **separate project** that depends on iudex; the only change it requires *inside* this repo is a machine-readable read path (`iudex status --json`).
 
+## Implementation status
+
+_Updated 2026-06-18. Built on branch `feat/gui-read-path` (off `main`, not yet merged). Code lives in `gui/`; per-commit detail is in the git history._
+
+All seven views are implemented and verified live:
+
+| View | Status | Notes |
+|------|--------|-------|
+| Read-path spine | ✅ | `iudex status --json` (the one upstream change, landed) + the `events.jsonl` doorbell. |
+| Dashboard | ✅ | Triage piles; **auto-activate toggle not yet built**. |
+| Terminal | ✅ | tmux pool via `portable-pty` + xterm.js; survives view switches. |
+| Tickets | ✅ | Reactive table + state-aware actions + front-of-funnel launchers (compose / shape-an-idea). **Dep-DAG toggle and ticket-detail panel not yet built.** |
+| Agents | ✅ | `capture-pane` peeks + synthesized status; multiple agents per ticket. |
+| Worktrees | ✅ | Read-only Monaco diff (two-dot vs main) + escape hatches; rail keyed on physical worktrees. |
+| Review | ✅ | brief/log/QA tabs + three-dot diff via the shared `DiffViewer`; preflighted approve & merge predicts conflicts with `git merge-tree` and offers one-click Begin-resolution. |
+| Settings | ✅ | General / Prompts subtabs; surgical `config.yml` writes preserve comments. |
+
+Plus: a header that offers to `iudex init` a non-workspace folder.
+
+**Not yet built (the lighter remaining items):** Dashboard **auto-activate** toggle, **ticket-detail panel**, the Tickets **dependency-DAG** toggle, and a **recent-projects** launcher.
+
+**Deliberate departures from this PRD, decided during the build:** agent peeks **poll `capture-pane`** rather than a live `-r` attach (dodges tmux's smallest-client resize war across a grid); Worktrees uses **two-dot** diff (shows uncommitted agent edits) while Review uses **three-dot** (what the ticket authored); merge-conflicts are **predicted and routed**, not resolved in-app (Monaco stays read-only), beyond an opt-in "Begin resolution" that runs `git merge` in the worktree.
+
 ## Problem Statement
 
 iudex is deliberately a pure, command-driven CLI with no daemon, no TUI, and no process launching — every state transition is a command a human runs, and the human is the scheduler. That purity is the right call for the CLI, but it pushes real cognitive load onto the operator:

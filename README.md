@@ -87,7 +87,7 @@ The skills only ever _call_ iudex; iudex stays unaware of them. `.context/` is t
 | `iudex retry <id>`                    | Reset a failed ticket for another attempt                                |
 | `iudex remove <id>`                   | Abandon a ticket                                                         |
 | `iudex review <id>`                   | Print brief, log, diff, QA review, state, and next actions               |
-| `iudex status [--all]`                | Tickets grouped by state                                                 |
+| `iudex status [--all] [--json]`       | Tickets grouped by state (`--json` emits the machine-readable read path)  |
 
 Commands run by an agent inside a worktree (`finish`, `qa`, `spawn`) infer the ticket from the current directory, so no id is needed.
 
@@ -136,3 +136,11 @@ Edit `.iudex/prompts/impl.md` and `review.md` to customize the instructions bake
 ├── AGENTS.md               # tracked; indexes the skills (init appends its section)
 └── .context/               # tracked project docs (glossary, adr/, prd/) — lazily created
 ```
+
+## Desktop GUI
+
+A native **desktop client** lives in [`gui/`](./gui) — a cockpit for the same pipeline, the way a git client drives `git`. It holds no authoritative state: it **reads** via `iudex status --json`, **writes** by shelling out to `iudex`, and watches `events.jsonl` as a doorbell, so it can never diverge from the CLI. It also does the one thing the CLI won't — supervise agent processes — via a tmux session pool.
+
+Seven views behind a top nav: **Dashboard** (glanceable triage), **Terminal** (tabbed live sessions), **Tickets** (reactive table + compose/shape-an-idea launchers), **Agents** (read-only peeks with synthesized status), **Worktrees** (read-only Monaco diff + escape hatches), **Review** (deep review with a preflighted approve & merge that predicts conflicts before firing), and **Settings**.
+
+Built with Tauri (Rust + React), xterm.js, and Monaco. See [`gui/README.md`](./gui/README.md) to run it; the design is specified in [`.context/prd/gui-client.md`](./.context/prd/gui-client.md).
