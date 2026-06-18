@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { FileChange, Preflight, RailCard, TaskDocs, Workspace } from "../types";
+import type {
+  FileChange,
+  Preflight,
+  RailCard,
+  Resolution,
+  TaskDocs,
+  Workspace,
+} from "../types";
 
 // Per-card title + merge badge for the whole pending-human-qa rail, in one
 // round-trip. Re-runs when the pending set changes or on the doorbell (`ws`), so
@@ -10,6 +17,9 @@ export function useRailStatus(
   mainBranch: string,
   worktrees: string[],
   ws: Workspace,
+  // Bumps to force a re-fetch outside the doorbell — e.g. a worktree merge (which
+  // fires no events.jsonl change) flipping a card between conflicts/resolving/clean.
+  refreshKey?: string | number,
 ): Record<string, RailCard> {
   const [cards, setCards] = useState<Record<string, RailCard>>({});
   const key = worktrees.join("|");
@@ -31,9 +41,10 @@ export function useRailStatus(
     return () => {
       alive = false;
     };
-    // `key` stands in for the worktree array; `ws` is the doorbell.
+    // `key` stands in for the worktree array; `ws` is the doorbell; `refreshKey`
+    // covers merge-state changes that don't touch events.jsonl.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [root, mainBranch, key, ws]);
+  }, [root, mainBranch, key, ws, refreshKey]);
 
   return cards;
 }
@@ -47,6 +58,7 @@ export function useReview(root: string, worktree: string | null, ws: Workspace) 
   const [docs, setDocs] = useState<TaskDocs | null>(null);
   const [changes, setChanges] = useState<FileChange[]>([]);
   const [preflight, setPreflight] = useState<Preflight | null>(null);
+  const [resolution, setResolution] = useState<Resolution | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
 
@@ -57,6 +69,7 @@ export function useReview(root: string, worktree: string | null, ws: Workspace) 
       setDocs(null);
       setChanges([]);
       setPreflight(null);
+      setResolution(null);
       return;
     }
     let alive = true;
@@ -72,12 +85,14 @@ export function useReview(root: string, worktree: string | null, ws: Workspace) 
         worktree,
         mainBranch: ws.mainBranch,
       }),
+      invoke<Resolution>("read_resolution", { worktree }),
     ])
-      .then(([d, c, p]) => {
+      .then(([d, c, p, r]) => {
         if (!alive) return;
         setDocs(d);
         setChanges(c);
         setPreflight(p);
+        setResolution(r);
         setError(null);
       })
       .catch((e) => alive && setError(String(e)));
@@ -86,5 +101,5 @@ export function useReview(root: string, worktree: string | null, ws: Workspace) 
     };
   }, [root, worktree, ws, nonce]);
 
-  return { docs, changes, preflight, error, recheck };
+  return { docs, changes, preflight, resolution, error, recheck };
 }

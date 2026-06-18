@@ -1,15 +1,6 @@
 import { useState, type ReactNode } from "react";
-import { DiffEditor, loader } from "@monaco-editor/react";
-import * as monaco from "monaco-editor";
-import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
-
-// Bundle Monaco locally instead of fetching it from a CDN — this is a desktop
-// app that must work offline and under Tauri's CSP. The base editor worker also
-// drives the diff computation; we skip the per-language workers (IntelliSense)
-// since everything here is read-only. Syntax highlighting is main-thread, so
-// colors still work without those workers.
-self.MonacoEnvironment = { getWorker: () => new editorWorker() };
-loader.config({ monaco });
+import { DiffEditor } from "@monaco-editor/react";
+import "../lib/monacoSetup";
 
 // The shared read-only diff surface (Worktrees now, Review later). Shows a base
 // vs head pair in a Monaco DiffEditor; owns the inline/split toggle. `title` and

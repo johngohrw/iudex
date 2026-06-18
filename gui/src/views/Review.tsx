@@ -1,9 +1,11 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { FileDiff, Preflight, Session, Ticket, Workspace } from "../types";
+import type { FileDiff, Preflight, Resolution, Session, Ticket, Workspace } from "../types";
 import { useRailStatus, useReview } from "../lib/review";
+import { useSessions } from "../lib/sessions";
 
 const DiffViewer = lazy(() => import("./DiffViewer"));
+const MergeEditor = lazy(() => import("./MergeEditor"));
 
 type Tab = "brief" | "log" | "review" | "changes" | "conflicts";
 
@@ -42,13 +44,9 @@ export default function Review({
   const [diff, setDiff] = useState<FileDiff | null>(null);
   const [busy, setBusy] = useState(false);
   const [actErr, setActErr] = useState<string | null>(null);
+  const [mergeFile, setMergeFile] = useState<string | null>(null);
 
-  const rail = useRailStatus(
-    root,
-    ws.mainBranch,
-    pending.flatMap((t) => (t.worktree ? [t.worktree] : [])),
-    ws,
-  );
+  const { sessions } = useSessions();
 
   // Honor a ticket handed in from the Dashboard.
   useEffect(() => {
@@ -69,15 +67,35 @@ export default function Review({
 
   const selected: Ticket | null = pending.find((t) => t.id === selId) ?? null;
   const worktree = selected?.worktree ?? null;
-  const { docs, changes, preflight, error, recheck } = useReview(root, worktree, ws);
+  const { docs, changes, preflight, resolution, error, recheck } = useReview(root, worktree, ws);
+  const rail = useRailStatus(
+    root,
+    ws.mainBranch,
+    pending.flatMap((t) => (t.worktree ? [t.worktree] : [])),
+    ws,
+    `${preflight?.ready}-${preflight?.mergeInProgress}`,
+  );
   const title = (worktree && rail[worktree]?.title) || "";
 
-  // Reset the open file / tab when switching tickets.
+  // A live conflict-resolution agent for this ticket, if one is running.
+  const resolver =
+    sessions.find((s) => s.kind === "agent" && s.ticket === selId && s.role === "resolve") ?? null;
+
+  // Reset the open file / tab / merge editor when switching tickets.
   useEffect(() => {
     setSelFile(null);
     setDiff(null);
     setActErr(null);
+    setMergeFile(null);
   }, [selId]);
+
+  // A worktree merge doesn't touch events.jsonl, so there's no doorbell while an
+  // agent (or the user) resolves — poll the git state to keep the tab live.
+  useEffect(() => {
+    if (!preflight?.mergeInProgress) return;
+    const h = setInterval(() => recheck(), 3000);
+    return () => clearInterval(h);
+  }, [preflight?.mergeInProgress, recheck]);
 
   // Load the three-dot diff for the selected file.
   useEffect(() => {
@@ -135,8 +153,35 @@ export default function Review({
   const abortResolution = () =>
     act(async () => {
       await invoke("abort_resolution", { worktree });
+      setMergeFile(null);
       recheck();
     });
+  // Merge main into the worktree, then hand the conflicts to a triage agent. If
+  // the merge happens to be clean (no conflicts) we skip the agent entirely.
+  const resolveWithAgent = () =>
+    act(async () => {
+      const conflicts = await invoke<boolean>("begin_resolution", {
+        worktree,
+        mainBranch: ws.mainBranch,
+      });
+      if (conflicts && worktree) {
+        await invoke<Session>("spawn_resolver", { root, ticket: selId, worktree });
+      }
+      recheck();
+    });
+  const stopResolver = () =>
+    act(async () => {
+      if (resolver) await invoke("kill_session", { name: resolver.name });
+    });
+  const commitResolution = () =>
+    act(async () => {
+      await invoke("commit_resolution", { worktree });
+      setMergeFile(null);
+      recheck();
+    });
+  const watchResolver = () => {
+    if (resolver) onOpenInTerminal(resolver.name);
+  };
   const openShell = (cwd: string) =>
     act(async () => {
       const s = await invoke<Session>("create_shell", { cwd });
@@ -272,16 +317,38 @@ export default function Review({
               </div>
             </div>
           ) : tab === "conflicts" ? (
-            <ConflictsTab
-              pf={preflight}
-              busy={busy}
-              onShellRoot={() => openShell(root)}
-              onShellWorktree={() => worktree && openShell(worktree)}
-              onBegin={beginResolution}
-              onAbort={abortResolution}
-              onRecheck={recheck}
-              onPickConflict={pickConflict}
-            />
+            mergeFile && worktree ? (
+              <Suspense fallback={<div className="wt-loading">loading editor…</div>}>
+                <MergeEditor
+                  worktree={worktree}
+                  path={mergeFile}
+                  busy={busy}
+                  onResolved={() => {
+                    setMergeFile(null);
+                    recheck();
+                  }}
+                  onCancel={() => setMergeFile(null)}
+                />
+              </Suspense>
+            ) : (
+              <ConflictsTab
+                pf={preflight}
+                resolution={resolution}
+                resolverActive={!!resolver}
+                busy={busy}
+                onResolveAgent={resolveWithAgent}
+                onWatch={watchResolver}
+                onStop={stopResolver}
+                onCommit={commitResolution}
+                onShellRoot={() => openShell(root)}
+                onShellWorktree={() => worktree && openShell(worktree)}
+                onBegin={beginResolution}
+                onAbort={abortResolution}
+                onRecheck={recheck}
+                onPickConflict={pickConflict}
+                onOpenFlagged={(f) => setMergeFile(f)}
+              />
+            )
           ) : (
             <pre className="rv-doc">{docText?.trim() ? docText : `(no ${TAB_LABELS[tab]})`}</pre>
           )}
@@ -305,26 +372,42 @@ export default function Review({
   );
 }
 
-// The merge-readiness workspace (the Conflicts tab): green when the merge is
-// guaranteed to succeed, else each blocking gate with its one-click remedy.
+// The merge-readiness workspace (the Conflicts tab). It walks the resolution
+// through its phases: ready → root-gate → predicted-conflict (Resolve with agent
+// / manually) → resolving (agent triaging) → flagged (open the merge editor) →
+// all-resolved (commit). A flagged conflict keeps Approve blocked until cleared.
 function ConflictsTab({
   pf,
+  resolution,
+  resolverActive,
   busy,
+  onResolveAgent,
+  onWatch,
+  onStop,
+  onCommit,
   onShellRoot,
   onShellWorktree,
   onBegin,
   onAbort,
   onRecheck,
   onPickConflict,
+  onOpenFlagged,
 }: {
   pf: Preflight | null;
+  resolution: Resolution | null;
+  resolverActive: boolean;
   busy: boolean;
+  onResolveAgent: () => void;
+  onWatch: () => void;
+  onStop: () => void;
+  onCommit: () => void;
   onShellRoot: () => void;
   onShellWorktree: () => void;
   onBegin: () => void;
   onAbort: () => void;
   onRecheck: () => void;
   onPickConflict: (f: string) => void;
+  onOpenFlagged: (f: string) => void;
 }) {
   if (!pf) return <div className="rv-conf-pad muted">Checking merge readiness…</div>;
   if (pf.ready)
@@ -335,16 +418,20 @@ function ConflictsTab({
       </div>
     );
 
-  return (
-    <div className="rv-conf-pad rv-blocked">
-      {!pf.onMain && (
+  // Root-level gates apply regardless of conflicts.
+  if (!pf.onMain)
+    return (
+      <div className="rv-conf-pad rv-blocked">
         <div className="rv-gate">
           <span className="rv-gate-msg">
             ⚠ Repo root is on <b>{pf.currentBranch}</b>, not the main branch — switch it first.
           </span>
         </div>
-      )}
-      {pf.onMain && !pf.clean && (
+      </div>
+    );
+  if (!pf.clean)
+    return (
+      <div className="rv-conf-pad rv-blocked">
         <div className="rv-gate">
           <span className="rv-gate-msg">
             ⚠ Repo root has {pf.dirtyFiles.length} uncommitted change
@@ -354,50 +441,116 @@ function ConflictsTab({
             Open shell at root
           </button>
         </div>
-      )}
-      {pf.mergeInProgress && (
-        <div className="rv-gate">
-          <span className="rv-gate-msg">
-            ⏳ Resolution in progress in the worktree — fix the conflicts, then{" "}
-            <code>git add</code> + commit.
-          </span>
-          <button className="wt-esc" disabled={busy} onClick={onShellWorktree}>
-            Open worktree shell
-          </button>
-          <button className="wt-esc danger" disabled={busy} onClick={onAbort}>
-            Abort
-          </button>
-          <button className="wt-esc" disabled={busy} onClick={onRecheck}>
-            Re-check
-          </button>
-        </div>
-      )}
-      {pf.onMain && pf.clean && pf.wouldConflict && !pf.mergeInProgress && (
-        <div className="rv-gate">
-          <span className="rv-gate-msg">
-            ⚠ Would conflict in {pf.conflictFiles.length} file
-            {pf.conflictFiles.length === 1 ? "" : "s"}:
-          </span>
-          <span className="rv-conflicts">
-            {pf.conflictFiles.map((f) => (
-              <button key={f} className="rv-conflict" onClick={() => onPickConflict(f)}>
-                {f}
-              </button>
-            ))}
-          </span>
-          <div className="rv-gate-actions">
-            <button className="wt-esc" disabled={busy} onClick={onBegin}>
-              Begin resolution
+      </div>
+    );
+
+  // A merge is underway in the worktree (agent or manual).
+  if (pf.mergeInProgress) {
+    const flagged = resolution?.flagged ?? [];
+    const allResolved = flagged.length === 0;
+    const resolved = resolution?.resolved ?? [];
+    return (
+      <div className="rv-conf-pad rv-blocked">
+        {resolverActive && (
+          <div className="rv-resolver">
+            <span className="rv-gate-msg">◐ Resolver agent working in the worktree…</span>
+            <button className="wt-esc" disabled={busy} onClick={onWatch}>
+              Watch
             </button>
-            <button className="wt-esc" disabled={busy} onClick={onShellWorktree}>
-              Open worktree shell
+            <button className="wt-esc danger" disabled={busy} onClick={onStop}>
+              Stop
             </button>
             <button className="wt-esc" disabled={busy} onClick={onRecheck}>
               Re-check
             </button>
           </div>
-        </div>
-      )}
+        )}
+
+        {allResolved ? (
+          <div className="rv-gate">
+            <span className="rv-gate-msg">
+              ✓ All conflicts resolved — commit to finish the merge.
+            </span>
+            <button className="merge-save" disabled={busy} onClick={onCommit}>
+              Commit resolution
+            </button>
+            <button className="wt-esc danger" disabled={busy} onClick={onAbort}>
+              Abort
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="rv-flag-head">
+              {resolution?.hasReport
+                ? `Agent flagged ${flagged.length} conflict${
+                    flagged.length === 1 ? "" : "s"
+                  } for your judgment — open one to resolve it:`
+                : `${flagged.length} unresolved conflict${
+                    flagged.length === 1 ? "" : "s"
+                  } — open one to resolve it:`}
+            </p>
+            <ul className="rv-flaglist">
+              {flagged.map((f) => (
+                <li key={f.file}>
+                  <button className="rv-flag-open" onClick={() => onOpenFlagged(f.file)}>
+                    <span className="rv-flag-file">{f.file}</span>
+                    {f.reason && <span className="rv-flag-reason">{f.reason}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {resolved.length > 0 && (
+              <p className="muted rv-resolved-note">
+                Agent already resolved: {resolved.map((r) => r.file).join(", ")}
+              </p>
+            )}
+            <div className="rv-gate-actions">
+              <button className="wt-esc" disabled={busy} onClick={onShellWorktree}>
+                Open worktree shell
+              </button>
+              <button className="wt-esc danger" disabled={busy} onClick={onAbort}>
+                Abort resolution
+              </button>
+              <button className="wt-esc" disabled={busy} onClick={onRecheck}>
+                Re-check
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // Predicted conflict, not yet started.
+  return (
+    <div className="rv-conf-pad rv-blocked">
+      <div className="rv-gate">
+        <span className="rv-gate-msg">
+          ⚠ Would conflict in {pf.conflictFiles.length} file
+          {pf.conflictFiles.length === 1 ? "" : "s"}:
+        </span>
+        <span className="rv-conflicts">
+          {pf.conflictFiles.map((f) => (
+            <button key={f} className="rv-conflict" onClick={() => onPickConflict(f)}>
+              {f}
+            </button>
+          ))}
+        </span>
+      </div>
+      <div className="rv-gate-actions">
+        <button className="merge-save" disabled={busy} onClick={onResolveAgent}>
+          Resolve with agent
+        </button>
+        <button className="wt-esc" disabled={busy} onClick={onBegin}>
+          Resolve manually
+        </button>
+        <button className="wt-esc" disabled={busy} onClick={onShellWorktree}>
+          Open worktree shell
+        </button>
+        <button className="wt-esc" disabled={busy} onClick={onRecheck}>
+          Re-check
+        </button>
+      </div>
     </div>
   );
 }

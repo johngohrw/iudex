@@ -339,6 +339,77 @@ pub fn spawn_idea(root: String, skill: String, seed: String) -> Result<Session, 
     })
 }
 
+/// The conflict-resolution agent's brief. It **triages** — resolving only what it
+/// is confident about and **flagging, never guessing**, anything that needs human
+/// judgment — then reports structurally. It commits the merge only if it resolved
+/// everything; any flagged file leaves the merge in progress for the human.
+const RESOLVE_PROMPT: &str = "You are resolving an in-progress git merge in THIS \
+worktree: `main` was merged into this ticket's branch and left conflicts. The two \
+branches are siblings cut from a shared base, so conflicts range from trivial \
+(duplicated or adjacent lines, import ordering) to genuinely semantic (both sides \
+changed the same logic in different ways).\n\n\
+For EACH conflicted file:\n\
+- If you can resolve it WITH CONFIDENCE, preserving BOTH sides' intent, do so, \
+remove all conflict markers, and `git add` the file.\n\
+- If resolving it would require GUESSING about intended behavior you cannot \
+determine from the code, do NOT guess and do NOT `git add` it — leave its conflict \
+markers exactly as they are for a human to decide.\n\n\
+Then write a report to `.task/resolution.json` (overwrite it) with exactly this \
+shape:\n\
+{\"resolved\":[{\"file\":\"path\",\"note\":\"what you did\"}],\"flagged\":[{\"file\
+\":\"path\",\"reason\":\"why it needs human judgment\"}]}\n\n\
+Finally:\n\
+- If you resolved and staged EVERY conflicted file (nothing flagged), complete the \
+merge with `git commit --no-edit`.\n\
+- If you flagged ANY file, do NOT commit — leave the merge in progress.\n\n\
+Touch only the conflicted files; change nothing else.";
+
+/// Launch a conflict-resolution agent into the worktree. Assumes a merge is
+/// already in progress there (the GUI runs `begin_resolution` first). It is a
+/// normal agent-kind session (ticket set, role `resolve`), so it appears in the
+/// Agents grid and can be watched/attached like any other; the human directs or
+/// takes over via its terminal. iudex's lifecycle is untouched — conflict
+/// resolution is GUI territory, so the prompt is built here, not by the CLI.
+#[tauri::command]
+pub fn spawn_resolver(root: String, ticket: String, worktree: String) -> Result<Session, String> {
+    let agent = agent_command(&root);
+    let cmd = format!("cd {} && {} {}", sh_quote(&worktree), agent, sh_quote(RESOLVE_PROMPT));
+
+    let started = now_millis();
+    let name = format!(
+        "{PREFIX}agent-{started}-{}",
+        SEQ.fetch_add(1, Ordering::Relaxed)
+    );
+    let st = Command::new("tmux")
+        .args(["new-session", "-d", "-s", &name, &cmd])
+        .status()
+        .map_err(|e| format!("tmux new-session: {e}"))?;
+    if !st.success() {
+        return Err("tmux new-session failed".to_string());
+    }
+    let _ = Command::new("tmux")
+        .args(["set-option", "-w", "-t", &name, "remain-on-exit", "on"])
+        .status();
+    for (opt, val) in [
+        ("@iudex_ticket", ticket.as_str()),
+        ("@iudex_role", "resolve"),
+        ("@iudex_started", started.as_str()),
+    ] {
+        let _ = Command::new("tmux")
+            .args(["set-option", "-t", &name, opt, val])
+            .status();
+    }
+
+    Ok(Session {
+        name,
+        kind: "agent".to_string(),
+        ticket: Some(ticket),
+        role: Some("resolve".to_string()),
+        started: Some(started),
+        title: String::new(),
+    })
+}
+
 /// Bulk-dismiss finished agents: kill every agent session whose pane has exited
 /// (dead), leaving live ones untouched. Backs the Agents view "clear finished"
 /// action. Returns how many were removed.

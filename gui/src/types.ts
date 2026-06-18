@@ -59,6 +59,39 @@ export interface RailCard {
   badge: "clean" | "conflicts" | "resolving";
 }
 
+// One conflicted file the agent flagged for human judgment (or any still-unmerged
+// file, with the agent's reason when it gave one).
+export interface FlaggedItem {
+  file: string;
+  reason: string;
+}
+
+// A conflict the agent resolved on its own (informational, from its report).
+export interface ResolvedItem {
+  file: string;
+  note: string;
+}
+
+// The state of an in-worktree conflict resolution (from `read_resolution`):
+// whether a merge is underway, git's authoritative unmerged set, and the agent's
+// triage report joined onto it.
+export interface Resolution {
+  mergeInProgress: boolean;
+  unmerged: string[];
+  flagged: FlaggedItem[];
+  resolved: ResolvedItem[];
+  hasReport: boolean;
+}
+
+// One conflicted file's three sides for the merge editor (from
+// `read_conflict_file`): `merged` is the working file with conflict markers.
+export interface ConflictFile {
+  ours: string;
+  theirs: string;
+  merged: string;
+  language: string;
+}
+
 // The merge-preflight for a pending-human-qa ticket (from `merge_preflight`):
 // predicts whether `iudex human-qa approve` would succeed.
 export interface Preflight {

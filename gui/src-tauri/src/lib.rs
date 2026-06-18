@@ -732,6 +732,173 @@ fn abort_resolution(worktree: String) -> Result<(), String> {
     Ok(())
 }
 
+/// The agent's structured conflict-triage report, written to
+/// `.task/resolution.json`. `resolved` is informational; the authoritative list
+/// of what still needs a human is git's unmerged set (see `read_resolution`).
+#[derive(serde::Deserialize, serde::Serialize, Clone, Default)]
+struct ResolvedItem {
+    file: String,
+    #[serde(default)]
+    note: String,
+}
+#[derive(serde::Deserialize, serde::Serialize, Clone, Default)]
+struct FlaggedItem {
+    file: String,
+    #[serde(default)]
+    reason: String,
+}
+#[derive(serde::Deserialize, Default)]
+struct Report {
+    #[serde(default)]
+    resolved: Vec<ResolvedItem>,
+    #[serde(default)]
+    flagged: Vec<FlaggedItem>,
+}
+
+/// The state of an in-worktree conflict resolution, for the Conflicts tab. The
+/// `flagged` list is built from git's unmerged set (the source of truth for what
+/// still needs deciding) joined to the agent's reasons — so an agent that
+/// under-reports can't hide an unresolved file. `resolved` echoes the agent's
+/// report for display.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Resolution {
+    merge_in_progress: bool,
+    unmerged: Vec<String>,
+    flagged: Vec<FlaggedItem>,
+    resolved: Vec<ResolvedItem>,
+    has_report: bool,
+}
+
+#[tauri::command]
+fn read_resolution(worktree: String) -> Result<Resolution, String> {
+    let merge_in_progress = Command::new("git")
+        .args(["-C", &worktree, "rev-parse", "-q", "--verify", "MERGE_HEAD"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+
+    let unmerged: Vec<String> = Command::new("git")
+        .args(["-C", &worktree, "diff", "--name-only", "--diff-filter=U"])
+        .output()
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .map(|l| l.trim().to_string())
+                .filter(|l| !l.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let report: Option<Report> =
+        std::fs::read_to_string(Path::new(&worktree).join(".task").join("resolution.json"))
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok());
+
+    // Authoritative flagged list = each still-unmerged file, annotated with the
+    // agent's reason when it gave one.
+    let flagged: Vec<FlaggedItem> = unmerged
+        .iter()
+        .map(|f| {
+            let reason = report
+                .as_ref()
+                .and_then(|r| r.flagged.iter().find(|x| &x.file == f))
+                .map(|x| x.reason.clone())
+                .unwrap_or_default();
+            FlaggedItem {
+                file: f.clone(),
+                reason,
+            }
+        })
+        .collect();
+    let resolved = report.as_ref().map(|r| r.resolved.clone()).unwrap_or_default();
+
+    Ok(Resolution {
+        merge_in_progress,
+        unmerged,
+        flagged,
+        resolved,
+        has_report: report.is_some(),
+    })
+}
+
+/// One conflicted file's three sides, for the editable merge editor: `ours` (the
+/// ticket branch, stage 2), `theirs` (main, stage 3), and `merged` (the current
+/// working file, still carrying conflict markers — the editor's starting point).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConflictFile {
+    ours: String,
+    theirs: String,
+    merged: String,
+    language: String,
+}
+
+#[tauri::command]
+fn read_conflict_file(worktree: String, path: String) -> Result<ConflictFile, String> {
+    let stage = |n: u8| -> String {
+        Command::new("git")
+            .args(["-C", &worktree, "show", &format!(":{n}:{path}")])
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+            .unwrap_or_default()
+    };
+    let merged = std::fs::read_to_string(Path::new(&worktree).join(&path)).unwrap_or_default();
+    Ok(ConflictFile {
+        ours: stage(2),
+        theirs: stage(3),
+        merged,
+        language: language_for(&path),
+    })
+}
+
+/// Write a human-resolved file back and stage it (`git add`). The bounded write
+/// side of the otherwise read-only Review surface — only ever a file that is
+/// mid-merge, and the result still passes through `human-qa approve`.
+#[tauri::command]
+fn write_resolved_file(worktree: String, path: String, content: String) -> Result<(), String> {
+    std::fs::write(Path::new(&worktree).join(&path), content)
+        .map_err(|e| format!("write {path}: {e}"))?;
+    let st = Command::new("git")
+        .args(["-C", &worktree, "add", "--", &path])
+        .status()
+        .map_err(|e| format!("git add: {e}"))?;
+    if !st.success() {
+        return Err(format!("git add {path} failed"));
+    }
+    Ok(())
+}
+
+/// Complete an in-worktree resolution merge by committing it. Guarded: refuses
+/// while any file is still unmerged, or when no merge is underway.
+#[tauri::command]
+fn commit_resolution(worktree: String) -> Result<(), String> {
+    let unmerged = Command::new("git")
+        .args(["-C", &worktree, "diff", "--name-only", "--diff-filter=U"])
+        .output()
+        .map(|o| !o.stdout.is_empty())
+        .unwrap_or(false);
+    if unmerged {
+        return Err("some files are still unresolved — resolve them first".into());
+    }
+    let merging = Command::new("git")
+        .args(["-C", &worktree, "rev-parse", "-q", "--verify", "MERGE_HEAD"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !merging {
+        return Err("no merge in progress in this worktree".into());
+    }
+    let out = Command::new("git")
+        .args(["-C", &worktree, "commit", "--no-edit"])
+        .output()
+        .map_err(|e| format!("git commit: {e}"))?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    Ok(())
+}
+
 /// Open a file in the user's GUI editor — an escape hatch out of the read-only
 /// viewer. Tries VS Code, then the platform opener. Fire-and-forget.
 #[tauri::command]
@@ -941,6 +1108,10 @@ pub fn run() {
             merge_preflight,
             begin_resolution,
             abort_resolution,
+            read_resolution,
+            read_conflict_file,
+            write_resolved_file,
+            commit_resolution,
             open_in_editor,
             reveal_in_finder,
             open_folder_with,
@@ -949,6 +1120,7 @@ pub fn run() {
             tmux::tmux_available,
             tmux::spawn_agent,
             tmux::spawn_idea,
+            tmux::spawn_resolver,
             tmux::clear_finished,
             tmux::session_status,
             tmux::list_sessions,
