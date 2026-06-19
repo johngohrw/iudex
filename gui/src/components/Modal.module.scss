@@ -1,0 +1,55 @@
+@use "../styles/tokens" as t;
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 8vh;
+  z-index: 50;
+}
+
+.box {
+  width: 560px;
+  max-width: calc(100vw - 32px);
+  max-height: 84vh;
+  overflow-y: auto;
+  background: #1e1f23;
+  border: 1px solid t.$border;
+  border-radius: 10px;
+  padding: 18px 20px;
+
+  h3 {
+    margin: 0 0 14px;
+  }
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+
+  button {
+    padding: 6px 16px;
+    border: 1px solid t.$border;
+    border-radius: 6px;
+    background: t.$accent;
+    color: white;
+    cursor: pointer;
+    font-size: 13px;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+  }
+
+  // A ghost (cancel) button keeps the actions layout but drops the fill.
+  button:global(.ghost) {
+    background: transparent;
+    color: t.$muted;
+  }
+}

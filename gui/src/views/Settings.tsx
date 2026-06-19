@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Config } from "../types";
+import s from "./Settings.module.scss";
 
 type Saved = { ok: boolean; msg: string } | null;
 type SubTab = "general" | "prompts";
@@ -49,15 +50,15 @@ export default function Settings({
   }, [root]);
 
   if (loadErr) return <div className="error">{loadErr}</div>;
-  if (!config) return <div className="settings-loading">loading config…</div>;
+  if (!config) return <div className={s.loading}>loading config…</div>;
 
   return (
-    <div className="settings">
-      <div className="subtabs">
+    <div className={s.settings}>
+      <div className={s.subtabs}>
         {SUBTABS.map((t) => (
           <button
             key={t.id}
-            className={`subtab${tab === t.id ? " active" : ""}`}
+            className={`${s.subtab} ${tab === t.id ? s.active : ""}`}
             onClick={() => setTab(t.id)}
           >
             {t.label}
@@ -65,7 +66,7 @@ export default function Settings({
         ))}
       </div>
 
-      <div className="settings-body">
+      <div className={s.body}>
         {tab === "general" ? (
           <GeneralTab
             config={config}
@@ -90,7 +91,7 @@ export default function Settings({
 function SavedNote({ saved }: { saved: Saved }) {
   if (!saved) return null;
   return (
-    <span className={saved.ok ? "saved-ok" : "saved-err"}>
+    <span className={saved.ok ? s.savedOk : s.savedErr}>
       {saved.ok ? "✓ " : "✗ "}
       {saved.msg}
     </span>
@@ -133,41 +134,41 @@ function GeneralTab({
   };
 
   return (
-    <section className="settings-card">
-      <div className="settings-head">
-        <span className="settings-title">General</span>
-        <code className="settings-path">.iudex/config.yml</code>
+    <section className={s.card}>
+      <div className={s.head}>
+        <span className={s.title}>General</span>
+        <code className={s.path}>.iudex/config.yml</code>
       </div>
 
       <label className="field">
         <span>Main branch</span>
         <input value={config.mainBranch} onChange={(e) => set("mainBranch", e.target.value)} />
-        <small className="field-note caution">
+        <small className={`${s.note} ${s.caution}`}>
           ⚠ the canonical merge target — set at init; changing it affects activate/merge.
         </small>
       </label>
 
-      <label className="field narrow">
+      <label className={`field ${s.narrow}`}>
         <span>Max active</span>
         <input
           type="number"
           value={config.maxActive}
           onChange={(e) => set("maxActive", Number(e.target.value))}
         />
-        <small className="field-note">0 = unlimited</small>
+        <small className={s.note}>0 = unlimited</small>
       </label>
 
-      <label className="field narrow">
+      <label className={`field ${s.narrow}`}>
         <span>QA reject limit</span>
         <input
           type="number"
           value={config.qaRejectLimit}
           onChange={(e) => set("qaRejectLimit", Number(e.target.value))}
         />
-        <small className="field-note">≤ 0 = unlimited</small>
+        <small className={s.note}>≤ 0 = unlimited</small>
       </label>
 
-      <label className="field narrow">
+      <label className={`field ${s.narrow}`}>
         <span>Merge strategy</span>
         <select value={config.mergeStrategy} onChange={(e) => set("mergeStrategy", e.target.value)}>
           <option value="no-ff">no-ff</option>
@@ -186,7 +187,7 @@ function GeneralTab({
           value={config.mergeMessageTemplate}
           onChange={(e) => set("mergeMessageTemplate", e.target.value)}
         />
-        <small className="field-note">
+        <small className={s.note}>
           <code>{"{{.Ticket}}"}</code> is substituted with the ticket id.
         </small>
       </label>
@@ -194,12 +195,12 @@ function GeneralTab({
       <label className="field">
         <span>Branch prefix</span>
         <input value={config.branchPrefix} onChange={(e) => set("branchPrefix", e.target.value)} />
-        <small className="field-note caution">
+        <small className={`${s.note} ${s.caution}`}>
           ⚠ applies to new tickets only — existing worktrees keep their branch.
         </small>
       </label>
 
-      <div className="settings-actions">
+      <div className={s.actions}>
         <SavedNote saved={saved} />
         <button disabled={busy} onClick={save}>
           {busy ? "Saving…" : "Save general"}
@@ -240,18 +241,18 @@ function PromptsTab({
   };
 
   return (
-    <section className="settings-card">
-      <div className="settings-head">
-        <span className="settings-title">Prompt templates</span>
-        <code className="settings-path">.iudex/prompts/</code>
+    <section className={s.card}>
+      <div className={s.head}>
+        <span className={s.title}>Prompt templates</span>
+        <code className={s.path}>.iudex/prompts/</code>
       </div>
 
       <label className="field">
         <span>
-          Impl prompt <code className="settings-path">impl.md</code>
+          Impl prompt <code className={s.path}>impl.md</code>
         </span>
         <textarea
-          className="settings-prompt"
+          className={s.prompt}
           rows={14}
           value={impl}
           onChange={(e) => {
@@ -264,10 +265,10 @@ function PromptsTab({
 
       <label className="field">
         <span>
-          Review prompt <code className="settings-path">review.md</code>
+          Review prompt <code className={s.path}>review.md</code>
         </span>
         <textarea
-          className="settings-prompt"
+          className={s.prompt}
           rows={14}
           value={review}
           onChange={(e) => {
@@ -278,7 +279,7 @@ function PromptsTab({
         />
       </label>
 
-      <div className="settings-actions">
+      <div className={s.actions}>
         <SavedNote saved={saved} />
         <button disabled={busy} onClick={save}>
           {busy ? "Saving…" : "Save prompts"}

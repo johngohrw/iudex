@@ -1,0 +1,130 @@
+@use "../styles/tokens" as t;
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+
+  button {
+    padding: 6px 14px;
+    border: 1px solid t.$border;
+    border-radius: 6px;
+    background: t.$accent;
+    color: white;
+    cursor: pointer;
+    font-size: 13px;
+
+    &:hover {
+      background: #3a78e6;
+    }
+  }
+
+  button:global(.ghost) {
+    background: transparent;
+    color: t.$link;
+
+    &:hover {
+      background: t.$hover;
+    }
+  }
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid t.$border;
+    color: t.$muted;
+    font-weight: 500;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #26272a;
+  }
+}
+
+.id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: t.$muted-2;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.empty {
+  color: t.$muted-3;
+  text-align: center;
+  padding: 24px;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+
+  button {
+    padding: 3px 10px;
+    border: 1px solid t.$border;
+    border-radius: 6px;
+    background: t.$accent;
+    color: white;
+    cursor: pointer;
+    font-size: 12px;
+
+    &:hover:not(:disabled) {
+      background: #3a78e6;
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+  }
+
+  button:global(.ghost) {
+    background: transparent;
+    color: t.$link;
+
+    &:hover:not(:disabled) {
+      background: t.$hover;
+    }
+  }
+}
+
+.depGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.depChip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid t.$border;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.hint {
+  color: t.$muted-2;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: -4px 0 14px;
+}

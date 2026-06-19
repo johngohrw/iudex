@@ -105,3 +105,36 @@ body {
   background: #2a2f3a;
   color: t.$link;
 }
+
+// Form field — a label-over-control wrapper used by every form (Settings,
+// compose-ticket, reject-reason).
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+
+  > span {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: t.$muted;
+  }
+
+  input,
+  textarea,
+  select {
+    padding: 7px 10px;
+    border: 1px solid t.$border;
+    border-radius: 6px;
+    background: #232427;
+    color: t.$text;
+    font-size: 13px;
+    font-family: inherit;
+  }
+
+  textarea {
+    resize: vertical;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+}

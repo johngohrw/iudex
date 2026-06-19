@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Session, Ticket, Workspace } from "../types";
 import { IDEA_SKILLS } from "../lib/skills";
+import StateBadge from "../components/StateBadge";
+import Modal from "../components/Modal";
+import s from "./Tickets.module.scss";
 
 // What to show in the trailing "detail" column for a ticket.
 function detail(t: Ticket): string {
@@ -104,7 +107,7 @@ export default function Tickets({
 
   return (
     <div>
-      <div className="tickets-toolbar">
+      <div className={s.toolbar}>
         <button onClick={() => setComposing(true)}>New ticket</button>
         <button className="ghost" onClick={() => setIdeating(true)}>
           New idea
@@ -113,7 +116,7 @@ export default function Tickets({
 
       {error && <div className="error">{error}</div>}
 
-      <table className="tickets">
+      <table className={s.table}>
         <thead>
           <tr>
             <th>id</th>
@@ -126,20 +129,20 @@ export default function Tickets({
         <tbody>
           {ws.tickets.length === 0 && (
             <tr>
-              <td colSpan={5} className="empty">
+              <td colSpan={5} className={s.empty}>
                 no tickets yet
               </td>
             </tr>
           )}
           {ws.tickets.map((t) => (
             <tr key={t.id}>
-              <td className="id">{t.id}</td>
+              <td className={s.id}>{t.id}</td>
               <td>
-                <span className={`state state-${t.state}`}>{t.state}</span>
+                <StateBadge state={t.state} />
               </td>
-              <td className="num">{t.qaRejects || ""}</td>
-              <td className="muted">{detail(t)}</td>
-              <td className="actions">
+              <td className={s.num}>{t.qaRejects || ""}</td>
+              <td className={s.muted}>{detail(t)}</td>
+              <td className={s.actions}>
                 {busy === t.id ? <span className="muted">…</span> : actionsFor(t)}
               </td>
             </tr>
@@ -164,25 +167,6 @@ export default function Tickets({
           }}
         />
       )}
-    </div>
-  );
-}
-
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>{title}</h3>
-        {children}
-      </div>
     </div>
   );
 }
@@ -231,7 +215,20 @@ function ComposeTicketModal({
   };
 
   return (
-    <Modal title={`New ticket${nextId ? ` (${nextId})` : ""}`} onClose={onClose}>
+    <Modal
+      title={`New ticket${nextId ? ` (${nextId})` : ""}`}
+      onClose={onClose}
+      actions={
+        <>
+          <button className="ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button disabled={busy} onClick={create}>
+            {busy ? "Creating…" : "Create"}
+          </button>
+        </>
+      }
+    >
       <label className="field">
         <span>Title</span>
         <input
@@ -253,9 +250,9 @@ function ComposeTicketModal({
       {eligible.length > 0 && (
         <div className="field">
           <span>Depends on</span>
-          <div className="dep-grid">
+          <div className={s.depGrid}>
             {eligible.map((t) => (
-              <label key={t.id} className="dep-chip">
+              <label key={t.id} className={s.depChip}>
                 <input
                   type="checkbox"
                   checked={deps.includes(t.id)}
@@ -268,14 +265,6 @@ function ComposeTicketModal({
         </div>
       )}
       {error && <div className="error">{error}</div>}
-      <div className="modal-actions">
-        <button className="ghost" onClick={onClose}>
-          Cancel
-        </button>
-        <button disabled={busy} onClick={create}>
-          {busy ? "Creating…" : "Create"}
-        </button>
-      </div>
     </Modal>
   );
 }
@@ -310,18 +299,31 @@ function NewIdeaModal({
   };
 
   return (
-    <Modal title="New idea — shape into tickets" onClose={onClose}>
+    <Modal
+      title="New idea — shape into tickets"
+      onClose={onClose}
+      actions={
+        <>
+          <button className="ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button disabled={busy} onClick={launch}>
+            {busy ? "Launching…" : "Launch"}
+          </button>
+        </>
+      }
+    >
       <label className="field">
         <span>Skill</span>
         <select value={skill} onChange={(e) => setSkill(e.target.value)}>
-          {IDEA_SKILLS.map((s) => (
-            <option key={s.slug} value={s.slug}>
-              {s.label}
+          {IDEA_SKILLS.map((sk) => (
+            <option key={sk.slug} value={sk.slug}>
+              {sk.label}
             </option>
           ))}
         </select>
       </label>
-      {chosen && <p className="modal-hint">{chosen.description}</p>}
+      {chosen && <p className={s.hint}>{chosen.description}</p>}
       <label className="field">
         <span>Idea / focus (optional)</span>
         <textarea
@@ -331,20 +333,12 @@ function NewIdeaModal({
           placeholder="describe the raw idea or area to focus on…"
         />
       </label>
-      <p className="modal-hint">
+      <p className={s.hint}>
         Launches an agent at the workspace root preloaded with this skill and
         opens it in the Terminal. It drives the chain to <code>iudex queue</code>;
         new tickets appear here on their own.
       </p>
       {error && <div className="error">{error}</div>}
-      <div className="modal-actions">
-        <button className="ghost" onClick={onClose}>
-          Cancel
-        </button>
-        <button disabled={busy} onClick={launch}>
-          {busy ? "Launching…" : "Launch"}
-        </button>
-      </div>
     </Modal>
   );
 }
