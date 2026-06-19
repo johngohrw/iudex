@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useSessions } from "../lib/sessions";
 import {
@@ -9,9 +9,29 @@ import {
   type AgentStatus,
 } from "../lib/agents";
 import type { FileChange, FileDiff, Session, Ticket, Workspace } from "../types";
+import StateBadge from "../components/StateBadge";
+import ChangedFilesDiff from "../components/ChangedFilesDiff";
 import XtermPane from "./XtermPane";
+import s from "./Agents.module.scss";
 
-const DiffViewer = lazy(() => import("./DiffViewer"));
+// Maps a synthesized agent status to its scoped pill class.
+const STATUS_CLASS: Record<AgentStatus, string> = {
+  working: s.working,
+  idle: s.idle,
+  "awaiting-finish": s.awaitingFinish,
+  "review-ready": s.reviewReady,
+  crashed: s.crashed,
+  done: s.done,
+  gone: s.gone,
+};
+
+function StatusPill({ status }: { status: AgentStatus }) {
+  return (
+    <span className={`${s.status} ${STATUS_CLASS[status] ?? ""}`}>
+      {STATUS_LABEL[status]}
+    </span>
+  );
+}
 
 // Master-detail over the agent sessions in the tmux pool. The left rail lists
 // agents (no peeks); the right panel is the selected agent's cockpit — an
@@ -21,7 +41,7 @@ const DiffViewer = lazy(() => import("./DiffViewer"));
 export default function Agents({ ws }: { ws: Workspace }) {
   const { sessions, available } = useSessions();
   const agents = sessions
-    .filter((s) => s.kind === "agent")
+    .filter((x) => x.kind === "agent")
     .sort(
       (a, b) =>
         (a.ticket ?? "").localeCompare(b.ticket ?? "") ||
@@ -31,7 +51,7 @@ export default function Agents({ ws }: { ws: Workspace }) {
   const statuses = useAgentStatuses(agents, ws);
 
   const worktreeOf = (a: Session) =>
-    a.ticket ? ws.tickets.find((t) => t.id === a.ticket)?.worktree ?? null : null;
+    a.ticket ? (ws.tickets.find((t) => t.id === a.ticket)?.worktree ?? null) : null;
   const titles = useBriefTitles(
     agents.flatMap((a) => {
       const w = worktreeOf(a);
@@ -70,11 +90,11 @@ export default function Agents({ ws }: { ws: Workspace }) {
   }
 
   return (
-    <div className="ag">
-      <aside className="ag-rail">
-        <div className="ag-list">
+    <div className={s.root}>
+      <aside className={s.rail}>
+        <div className={s.list}>
           {agents.length === 0 && (
-            <div className="ag-empty muted">
+            <div className={`${s.empty} muted`}>
               No agents running. Activate a ticket to launch one.
             </div>
           )}
@@ -84,24 +104,22 @@ export default function Agents({ ws }: { ws: Workspace }) {
             return (
               <button
                 key={a.name}
-                className={`ag-card${a.name === selName ? " active" : ""}`}
+                className={`${s.card} ${a.name === selName ? s.active : ""}`}
                 onClick={() => setSelName(a.name)}
               >
-                <span className="ag-card-top">
-                  <span className="ag-card-id">{a.ticket ?? "agent"}</span>
-                  <span className="ag-card-title">{(w && titles[w]) || ""}</span>
+                <span className={s.cardTop}>
+                  <span className={s.cardId}>{a.ticket ?? "agent"}</span>
+                  <span className={s.cardTitle}>{(w && titles[w]) || ""}</span>
                 </span>
-                <span className="ag-card-bot">
-                  <span className="ag-card-role">{a.role ?? "agent"}</span>
-                  <span className={`agent-status status-${status}`}>
-                    {STATUS_LABEL[status]}
-                  </span>
+                <span className={s.cardBot}>
+                  <span className={s.cardRole}>{a.role ?? "agent"}</span>
+                  <StatusPill status={status} />
                 </span>
               </button>
             );
           })}
         </div>
-        <div className="ag-foot">
+        <div className={s.foot}>
           <span className="muted">
             {agents.length} agent{agents.length === 1 ? "" : "s"}
           </span>
@@ -111,7 +129,7 @@ export default function Agents({ ws }: { ws: Workspace }) {
         </div>
       </aside>
 
-      <div className="ag-main">
+      <div className={s.main}>
         {selected ? (
           <AgentDetail
             key={selected.name}
@@ -127,7 +145,7 @@ export default function Agents({ ws }: { ws: Workspace }) {
             }}
           />
         ) : (
-          <div className="ag-detail-empty muted">
+          <div className={`${s.detailEmpty} muted`}>
             {agents.length > 0 ? "Select an agent." : ""}
           </div>
         )}
@@ -156,51 +174,51 @@ function AgentDetail({
   onKill: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("console");
-  const ticket = agent.ticket ? ws.tickets.find((t) => t.id === agent.ticket) ?? null : null;
+  const ticket = agent.ticket ? (ws.tickets.find((t) => t.id === agent.ticket) ?? null) : null;
 
   return (
-    <div className="ag-detail">
-      <header className="ag-head">
-        <div className="ag-head-info">
-          <span className="ag-head-id">{agent.ticket ?? "agent"}</span>
-          <span className="ag-head-role">{agent.role ?? "agent"}</span>
-          {title && <span className="ag-head-title">{title}</span>}
+    <div className={s.detail}>
+      <header className={s.head}>
+        <div className={s.headInfo}>
+          <span className={s.headId}>{agent.ticket ?? "agent"}</span>
+          <span className={s.headRole}>{agent.role ?? "agent"}</span>
+          {title && <span className={s.headTitle}>{title}</span>}
         </div>
-        <div className="ag-head-right">
-          <span className={`agent-status status-${status}`}>{STATUS_LABEL[status]}</span>
-          <button className="ag-x" title="dismiss panel (agent keeps running)" onClick={onDismiss}>
+        <div className={s.headRight}>
+          <StatusPill status={status} />
+          <button className={s.x} title="dismiss panel (agent keeps running)" onClick={onDismiss}>
             ✕
           </button>
         </div>
       </header>
 
-      <nav className="ag-tabs">
+      <nav className={s.tabs}>
         {(["ticket", "console", "worktree"] as Tab[]).map((t) => (
           <button
             key={t}
-            className={`ag-tab${tab === t ? " active" : ""}`}
+            className={`${s.tab} ${tab === t ? s.active : ""}`}
             onClick={() => setTab(t)}
           >
             {t}
           </button>
         ))}
-        <span className="ag-tabs-spacer" />
-        <button className="wt-esc danger" title="kill this agent" onClick={onKill}>
+        <span className={s.tabsSpacer} />
+        <button className="esc danger" title="kill this agent" onClick={onKill}>
           kill agent
         </button>
       </nav>
 
-      <div className="ag-content">
+      <div className={s.content}>
         {/* Console stays mounted while this agent is selected so switching tabs
             never tears down its PTY; only its visibility toggles. */}
-        <div className="ag-console" style={{ display: tab === "console" ? "block" : "none" }}>
+        <div className={s.console} style={{ display: tab === "console" ? "block" : "none" }}>
           <XtermPane session={agent.name} active={tab === "console"} />
         </div>
         {tab === "worktree" &&
           (worktree ? (
             <WorktreePanel worktree={worktree} mainBranch={ws.mainBranch} />
           ) : (
-            <div className="ag-pad muted">This agent has no worktree.</div>
+            <div className={`${s.pad} muted`}>This agent has no worktree.</div>
           ))}
         {tab === "ticket" && <TicketSummary ticket={ticket} role={agent.role ?? "agent"} />}
       </div>
@@ -211,26 +229,26 @@ function AgentDetail({
 // A minimal read-only ticket summary — a placeholder until the dedicated
 // "ticket details" view lands.
 function TicketSummary({ ticket, role }: { ticket: Ticket | null; role: string }) {
-  if (!ticket) return <div className="ag-pad muted">No ticket for this agent.</div>;
+  if (!ticket) return <div className={`${s.pad} muted`}>No ticket for this agent.</div>;
   return (
-    <div className="ag-pad ag-ticket">
-      <div className="ag-kv">
+    <div className={`${s.pad} ${s.ticket}`}>
+      <div className={s.kv}>
         <span>ticket</span>
         <b>{ticket.id}</b>
       </div>
-      <div className="ag-kv">
+      <div className={s.kv}>
         <span>state</span>
-        <span className={`state state-${ticket.state}`}>{ticket.state}</span>
+        <StateBadge state={ticket.state} />
       </div>
-      <div className="ag-kv">
+      <div className={s.kv}>
         <span>agent role</span>
         <b>{role}</b>
       </div>
-      <div className="ag-kv">
+      <div className={s.kv}>
         <span>deps</span>
         <b>{ticket.deps.length ? ticket.deps.join(", ") : "—"}</b>
       </div>
-      <div className="ag-kv">
+      <div className={s.kv}>
         <span>qa rejects</span>
         <b>{ticket.qaRejects}</b>
       </div>
@@ -239,7 +257,7 @@ function TicketSummary({ ticket, role }: { ticket: Ticket | null; role: string }
 }
 
 // The selected agent's worktree changes vs main (two-dot, so the agent's
-// uncommitted progress shows) + the shared Monaco diff. Read-only inspection.
+// uncommitted progress shows). Fetches; the shared ChangedFilesDiff renders.
 function WorktreePanel({ worktree, mainBranch }: { worktree: string; mainBranch: string }) {
   const [changes, setChanges] = useState<FileChange[]>([]);
   const [selFile, setSelFile] = useState<string | null>(null);
@@ -271,45 +289,23 @@ function WorktreePanel({ worktree, mainBranch }: { worktree: string; mainBranch:
   }, [worktree, selFile, mainBranch]);
 
   return (
-    <div className="rv-split">
-      <ul className="rv-filelist">
-        {err && <li className="error">{err}</li>}
-        {!err && changes.length === 0 && <li className="muted">no changes vs main</li>}
-        {changes.map((c) => (
-          <li
-            key={c.path}
-            className={`wt-file${c.path === selFile ? " active" : ""}`}
-            onClick={() => setSelFile(c.path)}
-          >
-            <span className={`wt-st wt-st-${c.status}`}>{c.status}</span>
-            <span className="wt-path">{c.path}</span>
-          </li>
-        ))}
-      </ul>
-      <div className="rv-diff">
-        {selFile && diff ? (
-          <Suspense fallback={<div className="wt-loading">loading editor…</div>}>
-            <DiffViewer
-              original={diff.original}
-              modified={diff.modified}
-              language={diff.language}
-              title={selFile}
-              actions={
-                <button
-                  className="wt-esc"
-                  onClick={() =>
-                    invoke("open_in_editor", { path: `${worktree}/${selFile}` }).catch(() => {})
-                  }
-                >
-                  Open in editor
-                </button>
-              }
-            />
-          </Suspense>
-        ) : (
-          <div className="wt-diff-empty">{changes.length > 0 ? "Pick a file to view its diff." : ""}</div>
-        )}
-      </div>
-    </div>
+    <ChangedFilesDiff
+      changes={changes}
+      selected={selFile}
+      onSelect={setSelFile}
+      diff={diff}
+      error={err}
+      noChangesHint="no changes vs main"
+      fileActions={
+        <button
+          className="esc"
+          onClick={() =>
+            invoke("open_in_editor", { path: `${worktree}/${selFile}` }).catch(() => {})
+          }
+        >
+          Open in editor
+        </button>
+      }
+    />
   );
 }

@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
+import s from "./XtermPane.module.scss";
 
 // One live, interactive terminal bound to a tmux session through a backend PTY.
 // The bridge: backend streams `pty-{id}` events (base64) → xterm.write; xterm
@@ -121,5 +122,5 @@ export default function XtermPane({
     });
   }, [active]);
 
-  return <div className="xterm-host" ref={hostRef} />;
+  return <div className={s.host} ref={hostRef} />;
 }

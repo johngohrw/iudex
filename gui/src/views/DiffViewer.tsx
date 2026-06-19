@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { DiffEditor } from "@monaco-editor/react";
 import "../lib/monacoSetup";
+import s from "./DiffViewer.module.scss";
 
 // The shared read-only diff surface (Worktrees now, Review later). Shows a base
 // vs head pair in a Monaco DiffEditor; owns the inline/split toggle. `title` and
@@ -22,20 +23,20 @@ export default function DiffViewer({
   const [sideBySide, setSideBySide] = useState(false); // inline by default
 
   return (
-    <div className="diff">
-      <div className="diff-head">
-        <span className="diff-title">{title}</span>
-        <div className="diff-head-actions">
+    <div className={s.diff}>
+      <div className={s.head}>
+        <span className={s.title}>{title}</span>
+        <div className={s.headActions}>
           {actions}
-          <div className="seg">
+          <div className={s.seg}>
             <button
-              className={sideBySide ? "" : "on"}
+              className={sideBySide ? "" : s.on}
               onClick={() => setSideBySide(false)}
             >
               inline
             </button>
             <button
-              className={sideBySide ? "on" : ""}
+              className={sideBySide ? s.on : ""}
               onClick={() => setSideBySide(true)}
             >
               split
@@ -43,7 +44,7 @@ export default function DiffViewer({
           </div>
         </div>
       </div>
-      <div className="diff-body">
+      <div className={s.body}>
         <DiffEditor
           original={original}
           modified={modified}

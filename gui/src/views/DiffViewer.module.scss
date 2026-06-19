@@ -1,0 +1,59 @@
+@use "../styles/tokens" as t;
+
+.diff {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: t.$panel;
+  border-bottom: 1px solid t.$border;
+}
+
+.title {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: t.$text-dim;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.headActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.seg {
+  display: flex;
+  border: 1px solid t.$border;
+  border-radius: 6px;
+  overflow: hidden;
+
+  button {
+    padding: 3px 10px;
+    border: none;
+    background: transparent;
+    color: t.$muted;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  button.on {
+    background: t.$accent;
+    color: white;
+  }
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+}

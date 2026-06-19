@@ -1,0 +1,92 @@
+// Global utility classes — the few cross-cutting bits that are intentionally
+// NOT scoped: text/button/empty-state primitives used by string from many
+// components. Everything view-specific lives in a co-located *.module.scss.
+// Imported once (App.tsx) so these names are available app-wide.
+@use "tokens" as t;
+
+.muted {
+  color: t.$muted-2;
+}
+
+.error {
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+  border: 1px solid #5a2b2b;
+  border-radius: 6px;
+  background: #2a1d1d;
+  color: #f0b0b0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+}
+
+// Secondary "ghost" button.
+.ghost {
+  padding: 4px 12px;
+  border: 1px solid t.$border;
+  border-radius: 6px;
+  background: transparent;
+  color: t.$link;
+  cursor: pointer;
+  font-size: 12px;
+
+  &:hover {
+    background: t.$hover;
+  }
+}
+
+// Escape-hatch / small secondary action button (formerly .wt-esc).
+.esc {
+  padding: 3px 10px;
+  border: 1px solid t.$border;
+  border-radius: 6px;
+  background: transparent;
+  color: t.$link;
+  cursor: pointer;
+  font-size: 12px;
+
+  &:hover {
+    background: t.$hover;
+  }
+
+  &.danger {
+    color: t.$red;
+
+    &:hover {
+      background: #2a1d1d;
+    }
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+}
+
+// Empty-state / not-available panel.
+.stub {
+  border: 1px dashed t.$border;
+  border-radius: 8px;
+  padding: 28px;
+  color: t.$muted;
+
+  h2 {
+    margin: 0 0 8px;
+    color: t.$text;
+  }
+
+  p {
+    margin: 0 0 14px;
+    max-width: 520px;
+    line-height: 1.5;
+  }
+}
+
+.stub-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  background: #2a2f3a;
+  color: t.$link;
+}

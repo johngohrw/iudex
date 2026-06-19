@@ -1,0 +1,10 @@
+@use "../styles/tokens" as t;
+
+.host {
+  height: 100%;
+  width: 100%;
+  background: t.$bg;
+  padding: 6px;
+  border: 1px solid t.$border;
+  border-radius: 6px;
+}

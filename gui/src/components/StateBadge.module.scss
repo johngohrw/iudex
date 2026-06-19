@@ -1,0 +1,40 @@
+@use "../styles/tokens" as t;
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  background: t.$chip-bg;
+  color: t.$text-dim;
+}
+
+.queued {
+  background: t.$accent-bg;
+  color: t.$link;
+}
+
+.active {
+  background: t.$green-bg;
+  color: t.$green;
+}
+
+.pending {
+  background: t.$yellow-bg;
+  color: t.$yellow;
+}
+
+.done {
+  background: t.$teal-bg;
+  color: t.$teal;
+}
+
+.failed {
+  background: t.$red-bg;
+  color: t.$red;
+}
+
+.removed {
+  background: t.$chip-bg;
+  color: #7a7a80;
+}
