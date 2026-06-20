@@ -14,8 +14,8 @@
 
   header {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
   }
 
   &.review {
@@ -29,12 +29,28 @@
 
 .title {
   font-weight: 600;
+  flex: 1 1 auto; // push control + count to the right edge
 }
 
 .count {
   font-variant-numeric: tabular-nums;
   color: t.$muted;
   font-size: 13px;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: t.$muted;
+  cursor: pointer;
+  user-select: none;
+
+  input {
+    cursor: pointer;
+    margin: 0;
+  }
 }
 
 .hint {

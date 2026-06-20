@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { VIEWS, type View, type Workspace } from "./types";
+import { useSessions } from "./lib/sessions";
 import Dashboard from "./views/Dashboard";
 import Tickets from "./views/Tickets";
 import Terminal from "./views/Terminal";
@@ -32,6 +33,27 @@ export default function App() {
   const [focusTicket, setFocusTicket] = useState<string | null>(null);
   // Set when a ticket detail panel wants to jump to a specific agent in Agents.
   const [focusAgent, setFocusAgent] = useState<string | null>(null);
+  // The PRD's one sanctioned automation: when on, ready tickets (queued, deps
+  // done, under max_active) are activated automatically. Persisted per-workspace.
+  const [autoActivate, setAutoActivate] = useState(false);
+  const autoActivateRef = useRef(false); // so the async drain sees toggle-off
+  const drainingRef = useRef(false); // prevents overlapping drain passes
+  const skipRef = useRef<Set<string>>(new Set()); // ids that errored this session
+  // The symmetric automation for the QA gate: auto-spawn a QA agent for each
+  // pending-qa ticket (the agent then runs `qa approve/reject` itself). Unlike
+  // activate, spawning doesn't change ticket state, so a per-episode "handled"
+  // set prevents re-spawning on every tick; it's cleared when a ticket leaves
+  // pending-qa so a reject→refinish gets a fresh QA agent.
+  const [autoQA, setAutoQA] = useState(false);
+  const autoQARef = useRef(false);
+  const qaDrainingRef = useRef(false);
+  const qaHandledRef = useRef<Set<string>>(new Set());
+  // The session pool — needed to detect an already-live QA agent (manual spawn
+  // or one that survived a GUI restart) so auto-QA doesn't double up.
+  const { sessions } = useSessions();
+
+  const aaKey = (r: string) => `iudex.autoActivate.${r}`;
+  const qaKey = (r: string) => `iudex.autoQA.${r}`;
 
   // The sole read path: re-run `iudex status --json` and replace local view.
   const load = useCallback(async (r: string) => {
@@ -99,6 +121,126 @@ export default function App() {
     };
   }, [root, load]);
 
+  // Restore the per-workspace automation preferences once root resolves.
+  useEffect(() => {
+    if (!root) return;
+    skipRef.current.clear();
+    qaHandledRef.current.clear();
+    setAutoActivate(localStorage.getItem(aaKey(root)) === "true");
+    setAutoQA(localStorage.getItem(qaKey(root)) === "true");
+  }, [root]);
+
+  // Keep the toggle handler honest: mirror into the ref the drain loop reads,
+  // persist per-workspace, and forget prior errors so a flip retries cleanly.
+  const toggleAutoActivate = useCallback(
+    (v: boolean) => {
+      autoActivateRef.current = v;
+      skipRef.current.clear();
+      if (root) localStorage.setItem(aaKey(root), String(v));
+      setAutoActivate(v);
+    },
+    [root]
+  );
+
+  const toggleAutoQA = useCallback(
+    (v: boolean) => {
+      autoQARef.current = v;
+      qaHandledRef.current.clear(); // re-evaluate every pending-qa ticket fresh
+      if (root) localStorage.setItem(qaKey(root), String(v));
+      setAutoQA(v);
+    },
+    [root]
+  );
+
+  // Drain ready tickets while auto-activate is on. Self-contained: it re-reads
+  // status each iteration (so deps + the max_active cap, both baked into
+  // `ready`, stay current as slots fill) rather than leaning on the doorbell to
+  // re-enter. Mirrors the manual activate path — activate then spawn the impl
+  // agent — minus the view jump. Errors park the id in skipRef so a failing
+  // ticket can't spin the loop.
+  useEffect(() => {
+    if (!autoActivate || !root || !ws) return;
+    if (drainingRef.current) return;
+    if (!ws.tickets.some((t) => t.state === "queued" && t.ready)) return;
+    drainingRef.current = true;
+    (async () => {
+      try {
+        while (autoActivateRef.current) {
+          const data = await invoke<Workspace>("iudex_status", { root });
+          const next = data.tickets.find(
+            (t) => t.state === "queued" && t.ready && !skipRef.current.has(t.id)
+          );
+          if (!next) break;
+          try {
+            await invoke("run_iudex", { root, args: ["activate", next.id] });
+            await invoke("spawn_agent", { root, ticket: next.id, role: "impl" });
+          } catch (e) {
+            skipRef.current.add(next.id);
+            setError(String(e));
+          }
+        }
+      } finally {
+        drainingRef.current = false;
+        load(root);
+      }
+    })();
+  }, [autoActivate, root, ws, load]);
+
+  // Auto-spawn a QA agent for each pending-qa ticket. One pass over the current
+  // pending-qa set (spawning, unlike activate, doesn't mutate ws, so there's
+  // nothing to re-read): mark each handled, skipping any that already has a
+  // LIVE qa session. `ws` re-triggers as tickets enter pending-qa; the sessions
+  // poll re-triggers but is a no-op once everything is handled. Episode marks
+  // are cleared here as tickets leave pending-qa, so a reject→refinish re-QAs.
+  useEffect(() => {
+    if (!autoQA || !root || !ws) return;
+    const pendingQA = new Set(
+      ws.tickets.filter((t) => t.state === "pending-qa").map((t) => t.id)
+    );
+    for (const id of qaHandledRef.current) {
+      if (!pendingQA.has(id)) qaHandledRef.current.delete(id);
+    }
+    const candidates = [...pendingQA].filter((id) => !qaHandledRef.current.has(id));
+    if (candidates.length === 0 || qaDrainingRef.current) return;
+    qaDrainingRef.current = true;
+    (async () => {
+      try {
+        for (const id of candidates) {
+          if (!autoQARef.current) break;
+          // Already covered by a live QA agent (manual spawn or restart)? Mark
+          // handled without spawning. A dead session doesn't count — that's a
+          // crash or a prior episode.
+          const qaSessions = sessions.filter(
+            (s) => s.kind === "agent" && s.role === "qa" && s.ticket === id
+          );
+          let live = false;
+          for (const s of qaSessions) {
+            try {
+              const st = await invoke<{ dead: boolean }>("session_status", {
+                name: s.name,
+              });
+              if (!st.dead) {
+                live = true;
+                break;
+              }
+            } catch {
+              // unknown → treat as not-live
+            }
+          }
+          qaHandledRef.current.add(id);
+          if (live) continue;
+          try {
+            await invoke("spawn_agent", { root, ticket: id, role: "qa" });
+          } catch (e) {
+            setError(String(e));
+          }
+        }
+      } finally {
+        qaDrainingRef.current = false;
+      }
+    })();
+  }, [autoQA, root, ws, sessions]);
+
   return (
     <main className={a.app}>
       <header className={a.bar}>
@@ -163,6 +305,10 @@ export default function App() {
                   setFocusTicket(id);
                   setView("review");
                 }}
+                autoActivate={autoActivate}
+                onToggleAutoActivate={toggleAutoActivate}
+                autoQA={autoQA}
+                onToggleAutoQA={toggleAutoQA}
               />
             )}
             {view === "tickets" && (

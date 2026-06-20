@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { View, Workspace } from "../types";
 import StateBadge from "../components/StateBadge";
 import s from "./Dashboard.module.scss";
@@ -11,10 +12,18 @@ export default function Dashboard({
   ws,
   onJump,
   onOpenReview,
+  autoActivate,
+  onToggleAutoActivate,
+  autoQA,
+  onToggleAutoQA,
 }: {
   ws: Workspace;
   onJump: (v: View) => void;
   onOpenReview: (id: string) => void;
+  autoActivate: boolean;
+  onToggleAutoActivate: (v: boolean) => void;
+  autoQA: boolean;
+  onToggleAutoQA: (v: boolean) => void;
 }) {
   const activeCount = ws.tickets.filter((t) => t.state === "active").length;
   const atCapacity = ws.maxActive > 0 && activeCount >= ws.maxActive;
@@ -29,14 +38,25 @@ export default function Dashboard({
       <Pile
         title="Ready to activate"
         hint={
-          atCapacity
-            ? `at capacity (${activeCount}/${ws.maxActive} active)`
-            : "deps cleared"
+          autoActivate
+            ? atCapacity
+              ? "auto · waiting for a slot"
+              : "auto · on"
+            : atCapacity
+              ? `at capacity (${activeCount}/${ws.maxActive} active)`
+              : "deps cleared"
         }
         tickets={ready}
         onClick={() => onJump("tickets")}
         muted={atCapacity}
         emptyText="nothing ready"
+        control={
+          <AutoToggle
+            checked={autoActivate}
+            onChange={onToggleAutoActivate}
+            title="Auto-activate ready tickets (deps done + under max-active)"
+          />
+        }
       />
       <Pile
         title="Pending human review"
@@ -49,10 +69,17 @@ export default function Dashboard({
       />
       <Pile
         title="In QA"
-        hint="awaiting agent QA"
+        hint={autoQA ? "auto · spawning QA agents" : "awaiting agent QA"}
         tickets={pendingQa}
         onClick={() => onJump("tickets")}
         emptyText="none in QA"
+        control={
+          <AutoToggle
+            checked={autoQA}
+            onChange={onToggleAutoQA}
+            title="Auto-spawn a QA agent for each pending-qa ticket"
+          />
+        }
       />
       <Pile
         title="Failed — needs a retry decision"
@@ -66,6 +93,29 @@ export default function Dashboard({
   );
 }
 
+// A compact opt-in automation switch that lives in a pile header. Stops click
+// propagation so toggling doesn't also trigger the pile's jump.
+function AutoToggle({
+  checked,
+  onChange,
+  title,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  title: string;
+}) {
+  return (
+    <label className={s.toggle} title={title} onClick={(e) => e.stopPropagation()}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>Auto</span>
+    </label>
+  );
+}
+
 function Pile({
   title,
   hint,
@@ -75,6 +125,7 @@ function Pile({
   emptyText,
   accent,
   muted,
+  control,
 }: {
   title: string;
   hint: string;
@@ -84,11 +135,13 @@ function Pile({
   emptyText: string;
   accent?: "review" | "failed";
   muted?: boolean;
+  control?: ReactNode;
 }) {
   return (
     <section className={`${s.pile} ${accent ? s[accent] : ""}`}>
       <header>
         <span className={s.title}>{title}</span>
+        {control}
         <span className={s.count}>{tickets.length}</span>
       </header>
       <div className={s.hint}>{hint}</div>
