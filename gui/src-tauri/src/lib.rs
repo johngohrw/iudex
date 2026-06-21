@@ -1132,6 +1132,7 @@ pub fn run() {
         .manage(WatcherState::default())
         .manage(tmux::PtyState::default())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             discover_workspace,
             init_workspace,
