@@ -32,12 +32,14 @@ export default function Review({
   focusTicket,
   onFocusHandled,
   onOpenInTerminal,
+  onWatchAgent,
 }: {
   ws: Workspace;
   root: string;
   focusTicket: string | null;
   onFocusHandled: () => void;
   onOpenInTerminal: (session: string) => void;
+  onWatchAgent: (name: string) => void;
 }) {
   const pending = ws.tickets.filter((t) => t.state === "pending-human-qa");
 
@@ -189,8 +191,10 @@ export default function Review({
       setMergeFile(null);
       recheck();
     });
+  // Watch = jump to the Agents cockpit and open the resolver's console tab,
+  // rather than spawning a separate Terminal tab for it.
   const watchResolver = () => {
-    if (resolver) onOpenInTerminal(resolver.name);
+    if (resolver) onWatchAgent(resolver.name);
   };
   const openShell = (cwd: string) =>
     act(async () => {
@@ -211,7 +215,12 @@ export default function Review({
   };
 
   if (pending.length === 0)
-    return <div className={s.empty}>Nothing awaiting human review.</div>;
+    return (
+      <div className={s.view}>
+        <ViewHeader dot="#836ddd" title="Review" subtitle="deep review · pending-human-qa" />
+        <div className={s.empty}>Nothing awaiting human review.</div>
+      </div>
+    );
 
   const docText =
     tab === "brief" ? docs?.brief : tab === "log" ? docs?.log : docs?.review;
@@ -219,7 +228,20 @@ export default function Review({
   const hb = headerBadge(preflight);
 
   return (
-    <div className={s.root}>
+    <div className={s.view}>
+      <ViewHeader dot="#836ddd" title="Review" subtitle="deep review · pending-human-qa">
+        {worktree && (
+          <>
+            <button className="esc" onClick={() => revealInFinder(worktree)}>
+              Reveal in Finder
+            </button>
+            <button className="esc" onClick={() => openFolderWith(worktree)}>
+              Open with…
+            </button>
+          </>
+        )}
+      </ViewHeader>
+      <div className={s.root}>
       <aside className={s.rail}>
         <div className={s.railHead}>PENDING HUMAN QA</div>
         {pending.map((t) => {
@@ -244,18 +266,6 @@ export default function Review({
       </aside>
 
       <div className={s.main}>
-        <ViewHeader dot="#836ddd" title="Review" subtitle="deep review · pending-human-qa">
-          {worktree && (
-            <>
-              <button className="esc" onClick={() => revealInFinder(worktree)}>
-                Reveal in Finder
-              </button>
-              <button className="esc" onClick={() => openFolderWith(worktree)}>
-                Open with…
-              </button>
-            </>
-          )}
-        </ViewHeader>
         <header className={s.head}>
           <div className={s.headInfo}>
             <div className={s.headTitle}>
@@ -355,6 +365,7 @@ export default function Review({
             {busy ? "…" : "Approve & merge"}
           </button>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -127,7 +127,26 @@ export interface Session {
   title: string;
 }
 
-// The seven top-level views, in nav order. Dashboard is the default landing.
+// One archived ticket (from `list_archives`): outcome "done" (merged) or
+// "removed" (abandoned). The Archive view's Review tab shows the merged ones.
+export interface ArchiveEntry {
+  id: string;
+  outcome: string;
+  title: string;
+  archivedAt: string;
+  mergeCommit: string;
+  qaRejects: number;
+}
+
+// The archived docs + final diff for one ticket (from `read_archive`).
+export interface ArchiveDocs {
+  brief: string;
+  log: string;
+  review: string;
+  diff: string;
+}
+
+// The top-level views, in nav order. Dashboard is the default landing.
 export type View =
   | "dashboard"
   | "terminal"
@@ -135,6 +154,7 @@ export type View =
   | "agents"
   | "worktrees"
   | "review"
+  | "archive"
   | "settings";
 
 // Per-view status-dot color (DESIGN.md §4). Settings is reached via the top-bar
@@ -146,6 +166,7 @@ export const VIEWS: { id: View; label: string; dot: string }[] = [
   { id: "agents", label: "Agents", dot: "#5ccf5c" },
   { id: "worktrees", label: "Worktrees", dot: "#9ea0e0" },
   { id: "review", label: "Review", dot: "#836ddd" },
+  { id: "archive", label: "Archive", dot: "#7fb3a8" },
   { id: "settings", label: "Settings", dot: "#8a8f99" },
 ];
 

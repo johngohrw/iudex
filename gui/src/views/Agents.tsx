@@ -62,11 +62,13 @@ export default function Agents({
   ws,
   root,
   focusAgent,
+  focusTab,
   onFocusHandled,
 }: {
   ws: Workspace;
   root: string;
   focusAgent?: string | null;
+  focusTab?: string | null;
   onFocusHandled?: () => void;
 }) {
   const { sessions, available } = useSessions();
@@ -93,20 +95,30 @@ export default function Agents({
   );
 
   const [selName, setSelName] = useState<string | null>(null);
+  // Which tab the detail panel opens on for the next selection ("ticket" by
+  // default; a cross-view "watch" can seed "console").
+  const [seedTab, setSeedTab] = useState<Tab>("ticket");
   const selected = agents.find((a) => a.name === selName) ?? null;
+
+  const select = (name: string, tab: Tab = "ticket") => {
+    setSelName(name);
+    setSeedTab(tab);
+  };
 
   // Drop the selection if its agent vanished from the pool.
   useEffect(() => {
     if (selName && !agents.some((a) => a.name === selName)) setSelName(null);
   }, [agents, selName]);
 
-  // Cross-view focus: select a specific agent when jumping from Tickets.
+  // Cross-view focus: select a specific agent when jumping from Tickets/Review,
+  // opening the requested tab (e.g. Review "watch" → the resolver's console).
   useEffect(() => {
     if (focusAgent && agents.some((a) => a.name === focusAgent)) {
-      setSelName(focusAgent);
+      select(focusAgent, (focusTab as Tab) || "ticket");
       onFocusHandled?.();
     }
-  }, [focusAgent, agents, onFocusHandled]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusAgent, focusTab, agents, onFocusHandled]);
 
   const kill = async (name: string) => {
     await invoke("kill_session", { name }).catch(() => {});
@@ -153,7 +165,7 @@ export default function Agents({
               <button
                 key={a.name}
                 className={`${s.card} ${a.name === selName ? s.active : ""}`}
-                onClick={() => setSelName(a.name)}
+                onClick={() => select(a.name)}
               >
                 <span className={s.cardTop}>
                   <span className={s.cardId}>{a.ticket ?? "agent"}</span>
@@ -186,6 +198,7 @@ export default function Agents({
             agent={selected}
             ws={ws}
             root={root}
+            initialTab={seedTab}
             status={statuses[selected.name] ?? "idle"}
             title={
               (worktreeOf(selected) && titles[worktreeOf(selected)!]) || ""
@@ -217,6 +230,7 @@ function AgentDetail({
   status,
   title,
   worktree,
+  initialTab,
   onDismiss,
   onKill,
 }: {
@@ -226,10 +240,14 @@ function AgentDetail({
   status: AgentStatus;
   title: string;
   worktree: string | null;
+  initialTab: Tab;
   onDismiss: () => void;
   onKill: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>("console");
+  const [tab, setTab] = useState<Tab>(initialTab);
+  // Follow a new seed when the parent re-targets this same agent (e.g. a second
+  // "watch"); a different agent remounts (keyed by name) and picks it up anyway.
+  useEffect(() => setTab(initialTab), [initialTab]);
   const ticket = agent.ticket
     ? (ws.tickets.find((t) => t.id === agent.ticket) ?? null)
     : null;

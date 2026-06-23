@@ -10,6 +10,7 @@ import Terminal from "./views/Terminal";
 import Agents from "./views/Agents";
 import Worktrees from "./views/Worktrees";
 import Review from "./views/Review";
+import Archive from "./views/Archive";
 import Settings from "./views/Settings";
 import SectionHeader from "./components/SectionHeader";
 import "./styles/base.scss";
@@ -35,6 +36,8 @@ export default function App() {
   const [focusSession, setFocusSession] = useState<string | null>(null);
   const [focusTicket, setFocusTicket] = useState<string | null>(null);
   const [focusAgent, setFocusAgent] = useState<string | null>(null);
+  // When set alongside focusAgent, the Agents view opens that agent on this tab.
+  const [focusAgentTab, setFocusAgentTab] = useState<string | null>(null);
   const [autoActivate, setAutoActivate] = useState(false);
   const autoActivateRef = useRef(false);
   const drainingRef = useRef(false);
@@ -269,6 +272,7 @@ export default function App() {
       tickets.filter((t) => t.hasWorktree && t.worktree).map((t) => t.worktree)
     ).size,
     review: cnt("pending-human-qa"),
+    archive: cnt("done"),
   };
   const pipeline = [
     { n: cnt("queued"), label: "Queued", color: "#cfcfcf" },
@@ -464,7 +468,11 @@ export default function App() {
                 ws={ws}
                 root={root}
                 focusAgent={focusAgent}
-                onFocusHandled={() => setFocusAgent(null)}
+                focusTab={focusAgentTab}
+                onFocusHandled={() => {
+                  setFocusAgent(null);
+                  setFocusAgentTab(null);
+                }}
               />
             )}
             {view === "worktrees" && (
@@ -487,8 +495,14 @@ export default function App() {
                   setFocusSession(name);
                   setView("terminal");
                 }}
+                onWatchAgent={(name) => {
+                  setFocusAgent(name);
+                  setFocusAgentTab("console");
+                  setView("agents");
+                }}
               />
             )}
+            {view === "archive" && <Archive root={root} />}
             {view === "settings" && (
               <Settings root={root} onConfigSaved={() => load(root)} />
             )}

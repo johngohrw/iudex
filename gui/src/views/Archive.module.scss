@@ -1,0 +1,237 @@
+@use "../styles/tokens" as t;
+
+.view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+// ── Header (dot + title + tab switcher) ───────────────────────────────────────
+.header {
+  height: 30px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  background: t.$panel-mid;
+  border-bottom: 1px solid t.$divider-mid;
+  white-space: nowrap;
+}
+.headerDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #7fb3a8;
+}
+.headerTitle {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.blank {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: t.$text-muted;
+  font-size: 12px;
+}
+
+// ── Review tab: master-detail ─────────────────────────────────────────────────
+.root {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.empty {
+  color: t.$text-muted;
+  padding: 20px;
+  font-size: 12px;
+}
+
+.rail {
+  width: 200px;
+  flex: none;
+  overflow-y: auto;
+  background: t.$panel-rail;
+  border-right: 1px solid t.$divider-mid;
+  display: flex;
+  flex-direction: column;
+}
+.railHead {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #3a3a3a;
+  padding: 7px 10px 4px;
+  border-bottom: 1px solid t.$divider-mid;
+}
+.item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid t.$divider-mid;
+  background: transparent;
+  color: t.$text;
+  cursor: pointer;
+  text-align: left;
+
+  &.active {
+    background: t.$sel-bg;
+    border-left-color: t.$success;
+  }
+}
+.itemTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+}
+.itemId {
+  font-family: t.$font-mono;
+  font-weight: 600;
+  font-size: 12px;
+
+  .active & {
+    color: t.$sel-text;
+  }
+}
+.itemDate {
+  font-family: t.$font-mono;
+  font-size: 10px;
+  color: t.$text-muted;
+
+  .active & {
+    color: #cdd2ff;
+  }
+}
+.itemTitle {
+  font-size: 11px;
+  color: t.$text-muted;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+
+  .active & {
+    color: #dfe2ff;
+  }
+}
+
+// ── Detail ────────────────────────────────────────────────────────────────────
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: t.$panel-detail;
+}
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: t.$panel-rail;
+  border-bottom: 1px solid t.$divider-mid;
+}
+.headId {
+  font-family: t.$font-mono;
+  font-weight: 600;
+  font-size: 13px;
+  color: t.$text;
+}
+.headName {
+  font-size: 13px;
+  color: t.$text-muted;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spacer {
+  flex: 1;
+}
+.merge {
+  font-family: t.$font-mono;
+  font-size: 11px;
+  color: #1a5a26;
+}
+
+.doctabs {
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  background: t.$divider-mid;
+  border-bottom: 1px solid t.$divider-mid;
+  flex: none;
+}
+.doctab {
+  padding: 5px 12px;
+  border: none;
+  border-top: 2px solid transparent;
+  background: t.$panel-rail;
+  color: t.$text-muted;
+  cursor: pointer;
+  font-family: t.$font-ui;
+  font-size: 12px;
+
+  &.active {
+    background: t.$panel-mid;
+    color: t.$text;
+    border-top-color: t.$amber;
+  }
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.doc {
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  flex: 1;
+  background: t.$field-read;
+  font-family: t.$font-mono;
+  font-size: 11px;
+  line-height: 1.6;
+  color: t.$text;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+// ── Unified patch (per-line coloring) ─────────────────────────────────────────
+.patch {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 10px;
+  background: t.$panel-light;
+  font-family: t.$font-mono;
+  font-size: 11px;
+  line-height: 1.5;
+  color: t.$text;
+  white-space: pre;
+}
+.add {
+  background: #cdeccd;
+  color: #15692f;
+}
+.del {
+  background: #f0d4cf;
+  color: #a82d22;
+}
+.hunk {
+  color: #1c6f78;
+}
+.meta {
+  color: t.$text-muted;
+}

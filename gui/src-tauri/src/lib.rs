@@ -592,6 +592,105 @@ fn worktree_task_docs(worktree: String) -> Result<TaskDocs, String> {
     })
 }
 
+/// One archived ticket (.iudex/archive/<id>/) — the list entry for the Archive
+/// view. `outcome` is "done" (merged) or "removed" (abandoned); the GUI filters.
+#[derive(serde::Serialize)]
+struct ArchiveEntry {
+    id: String,
+    outcome: String,
+    title: String,
+    #[serde(rename = "archivedAt")]
+    archived_at: String,
+    #[serde(rename = "mergeCommit")]
+    merge_commit: String,
+    #[serde(rename = "qaRejects")]
+    qa_rejects: i64,
+}
+
+#[derive(serde::Deserialize)]
+struct ArchiveMetaRaw {
+    #[serde(default)]
+    outcome: String,
+    #[serde(default)]
+    archived_at: String,
+    #[serde(default)]
+    merge_commit: String,
+    #[serde(default)]
+    qa_rejects: i64,
+}
+
+/// List archived tickets, newest first. Reads each .iudex/archive/<id>/meta.json
+/// plus the brief title. Pure file reads — the CLI already wrote the archive on
+/// human-qa approve / remove, so this is plumbing, not state-machine logic.
+#[tauri::command]
+fn list_archives(root: String) -> Result<Vec<ArchiveEntry>, String> {
+    let dir = Path::new(&root).join(".iudex").join("archive");
+    let mut out = Vec::new();
+    let read = match std::fs::read_dir(&dir) {
+        Ok(r) => r,
+        Err(_) => return Ok(out), // no archive directory yet
+    };
+    for entry in read.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let meta_txt = match std::fs::read_to_string(path.join("meta.json")) {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        let meta: ArchiveMetaRaw = match serde_json::from_str(&meta_txt) {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        out.push(ArchiveEntry {
+            id: entry.file_name().to_string_lossy().to_string(),
+            outcome: meta.outcome,
+            title: archive_title(&path),
+            archived_at: meta.archived_at,
+            merge_commit: meta.merge_commit,
+            qa_rejects: meta.qa_rejects,
+        });
+    }
+    // archived_at is RFC3339 → lexical sort is chronological; newest first.
+    out.sort_by(|a, b| b.archived_at.cmp(&a.archived_at));
+    Ok(out)
+}
+
+/// Title from an archived brief.md: first non-empty line, heading marker stripped.
+fn archive_title(dir: &Path) -> String {
+    let text = std::fs::read_to_string(dir.join("brief.md")).unwrap_or_default();
+    for line in text.lines() {
+        let l = line.trim();
+        if l.is_empty() {
+            continue;
+        }
+        return l.trim_start_matches('#').trim().to_string();
+    }
+    String::new()
+}
+
+/// The archived docs + final diff for one ticket — the Archive detail pane.
+#[derive(serde::Serialize)]
+struct ArchiveDocs {
+    brief: String,
+    log: String,
+    review: String,
+    diff: String,
+}
+
+#[tauri::command]
+fn read_archive(root: String, id: String) -> Result<ArchiveDocs, String> {
+    let dir = Path::new(&root).join(".iudex").join("archive").join(&id);
+    let read = |name: &str| std::fs::read_to_string(dir.join(name)).unwrap_or_default();
+    Ok(ArchiveDocs {
+        brief: read("brief.md"),
+        log: read("log.md"),
+        review: read("review.md"),
+        diff: read("diff.patch"),
+    })
+}
+
 /// The merge-preflight for Review — predicts, ahead of time, whether
 /// `iudex human-qa approve` would succeed, so the merge only ever fires when
 /// guaranteed to. Mirrors the CLI's two approve gates (root on main_branch +
@@ -1149,6 +1248,8 @@ pub fn run() {
             read_queue_brief,
             write_queue_brief,
             worktree_task_docs,
+            list_archives,
+            read_archive,
             merge_preflight,
             begin_resolution,
             abort_resolution,

@@ -1,8 +1,14 @@
 @use "../styles/tokens" as t;
 
+.view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
 .root {
   display: flex;
-  height: 100%;
+  flex: 1;
   min-height: 0;
 }
 
