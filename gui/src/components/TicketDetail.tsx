@@ -4,7 +4,7 @@ import type { Ticket, Workspace } from "../types";
 import { useTicketDocs } from "../lib/tickets";
 import { useSessions } from "../lib/sessions";
 import { useAgentStatuses, STATUS_LABEL, type AgentStatus } from "../lib/agents";
-import StateBadge from "./StateBadge";
+import Badge from "./Badge";
 import s from "./TicketDetail.module.scss";
 
 type LogTab = "impl" | "qa";
@@ -129,7 +129,7 @@ export default function TicketDetail({
       {/* Header */}
       <div className={s.header}>
         <span className={s.headId}>{ticket.id}</span>
-        <StateBadge state={ticket.state} />
+        <Badge kind="state" value={ticket.state} />
         <button className={s.headClose} onClick={onClose} title="close">✕</button>
       </div>
 

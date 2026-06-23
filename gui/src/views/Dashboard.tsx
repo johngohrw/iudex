@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { View, Workspace } from "../types";
-import StateBadge from "../components/StateBadge";
+import Badge from "../components/Badge";
 import s from "./Dashboard.module.scss";
 
 // The light, glanceable router: "what needs me right now?". It derives every
@@ -164,7 +164,7 @@ function Pile({
               title="open"
             >
               <span className={s.id}>{t.id}</span>
-              <StateBadge state={t.state} />
+              <Badge kind="state" value={t.state} />
             </li>
           ))}
         </ul>

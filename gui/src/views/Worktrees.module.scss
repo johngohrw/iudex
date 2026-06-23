@@ -70,20 +70,6 @@
   flex-wrap: wrap;
   gap: 4px;
 }
-.badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 5px;
-  border-radius: 2px;
-  font-family: t.$font-mono;
-  font-size: 10px;
-  background: #828282;
-  color: t.$text-bright;
-}
-.badgeMuted {
-  color: t.$text-muted;
-  font-style: italic;
-}
 
 // ── Changed-files panel (240px) ───────────────────────────────────────────────
 .files {

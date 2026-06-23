@@ -6,6 +6,7 @@ import { useSessions } from "../lib/sessions";
 import ChangedFilesDiff from "../components/ChangedFilesDiff";
 import Modal from "../components/Modal";
 import ViewHeader from "../components/ViewHeader";
+import Badge from "../components/Badge";
 import s from "./Review.module.scss";
 
 const MergeEditor = lazy(() => import("./MergeEditor"));
@@ -259,7 +260,7 @@ export default function Review({
                 </span>
               </span>
               <span className={s.itemSub}>qa&nbsp;✓</span>
-              <span className={`${s.badge} ${badgeCls(b.cls)}`}>{b.label}</span>
+              <Badge kind="merge" value={b.cls}>{b.label}</Badge>
             </button>
           );
         })}
@@ -275,7 +276,7 @@ export default function Review({
             <div className={s.headSub}>
               <span className={s.headVerdict}>qa&nbsp;✓ approved</span>
               <span className={s.dot}>·</span>
-              <span className={`${s.badge} ${badgeCls(hb.cls)}`}>{hb.label}</span>
+              <Badge kind="merge" value={hb.cls}>{hb.label}</Badge>
             </div>
           </div>
         </header>
@@ -552,15 +553,6 @@ function ConflictsTab({
       </div>
     </div>
   );
-}
-
-// Maps a badge cls token (clean / conflicts / resolving) to its scoped class.
-function badgeCls(cls: string): string {
-  return cls === "conflicts"
-    ? s.badgeConflicts
-    : cls === "resolving"
-      ? s.badgeResolving
-      : s.badgeClean;
 }
 
 // Header/rail badge helpers — both render the same vocabulary so the rail card

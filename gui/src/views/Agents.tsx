@@ -17,40 +17,27 @@ import type {
 } from "../types";
 import { useTicketDocs } from "../lib/tickets";
 import ChangedFilesDiff from "../components/ChangedFilesDiff";
-import Chip from "../components/Chip";
+import Badge from "../components/Badge";
 import Button from "../components/Button";
 import ViewHeader from "../components/ViewHeader";
+import { agentStatusColor } from "../lib/badges";
 import XtermPane from "./XtermPane";
 import s from "./Agents.module.scss";
 
-// Synthesized agent status → its signal color (DESIGN.md: color is state).
-const STATUS_COLOR: Record<AgentStatus, string> = {
-  working: "#5ccf5c",
-  idle: "#f4bc41",
-  "awaiting-finish": "#f4bc41",
-  "review-ready": "#836ddd",
-  crashed: "#e0584c",
-  done: "#5ccf5c",
-  gone: "#565656",
-};
-
-// A status as a colored dot + label — the rail/header status indicator.
+// A status as a colored dot + label — the rail/header status indicator. The dot
+// color comes from the shared badge registry (single source for state colors).
 function StatusDot({ status }: { status: AgentStatus }) {
   return (
     <>
-      <span
-        className={s.statusDot}
-        style={{ background: STATUS_COLOR[status] }}
-      />
+      <span className={s.statusDot} style={{ background: agentStatusColor(status) }} />
       {STATUS_LABEL[status]}
     </>
   );
 }
 
-// Role chip — monochrome for every role (the design's default neutral Chip,
-// #404040 / #cfcfcf). Role is conveyed by the label text, not by color.
+// Role chip — the shared <Badge> in role mode (monochrome; label conveys role).
 function RoleChip({ role }: { role: string }) {
-  return <Chip>{role}</Chip>;
+  return <Badge kind="role">{role}</Badge>;
 }
 
 // Master-detail over the agent sessions in the tmux pool. The left rail lists

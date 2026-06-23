@@ -3,24 +3,14 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Session, Ticket, Workspace } from "../types";
 import { IDEA_SKILLS } from "../lib/skills";
 import { useBriefTitles } from "../lib/agents";
-import StateBadge from "../components/StateBadge";
+import { stateDot } from "../lib/badges";
+import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import Button from "../components/Button";
 import TabSwitcher from "../components/TabSwitcher";
 import TicketDetail from "../components/TicketDetail";
 import TicketGraph from "./TicketGraph";
 import s from "./Tickets.module.scss";
-
-// State → row dot color (DESIGN.md: color is state).
-const DOT: Record<string, string> = {
-  queued: "#9ea0e0",
-  active: "#f4bc41",
-  "pending-qa": "#5bc7d8",
-  "pending-human-qa": "#836ddd",
-  done: "#5ccf5c",
-  failed: "#e0584c",
-  removed: "#565656",
-};
 
 // The row action button style per variant (ported from iudex.dc.html ACT map).
 const ACT: Record<string, { bg: string; color: string; border: string }> = {
@@ -173,7 +163,7 @@ export default function Tickets({
                     }}
                   >
                     <div className={s.rowDot}>
-                      <span className={s.dot} style={{ background: DOT[t.state] }} />
+                      <span className={s.dot} style={{ background: stateDot(t.state) }} />
                     </div>
                     <div className={s.cellId} style={on ? { color: "#fff" } : undefined}>
                       {t.id}
@@ -182,7 +172,7 @@ export default function Tickets({
                       {titleOf(t)}
                     </div>
                     <div>
-                      <StateBadge state={t.state} />
+                      <Badge kind="state" value={t.state} />
                     </div>
                     <div className={s.cellDeps} style={on ? { color: "#cdd2ff" } : undefined}>
                       {depText(t)}

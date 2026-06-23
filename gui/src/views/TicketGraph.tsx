@@ -1,17 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Ticket } from "../types";
-
-// Graph palette per state (dot + node pill), ported from iudex.dc.html STATE map.
-const G: Record<string, { dot: string; pillBg: string; pillText: string; label: string }> = {
-  active: { dot: "#f4bc41", pillBg: "#f4bc41", pillText: "#2a2a2a", label: "active" },
-  "pending-qa": { dot: "#5bc7d8", pillBg: "#5bc7d8", pillText: "#10333a", label: "pending-qa" },
-  "pending-human-qa": { dot: "#836ddd", pillBg: "#836ddd", pillText: "#ffffff", label: "human-qa" },
-  queued: { dot: "#9ea0e0", pillBg: "#3a3f4a", pillText: "#cfcfcf", label: "queued" },
-  failed: { dot: "#e0584c", pillBg: "#e0584c", pillText: "#ffffff", label: "failed" },
-  done: { dot: "#5ccf5c", pillBg: "#243029", pillText: "#5ccf5c", label: "done" },
-  removed: { dot: "#565656", pillBg: "#3a3f4a", pillText: "#8a8f99", label: "removed" },
-};
-const g = (st: string) => G[st] ?? G.queued;
+import { stateDot, ticketState } from "../lib/badges";
+import Badge from "../components/Badge";
 
 const NW = 178;
 const NH = 64;
@@ -159,7 +149,6 @@ export default function TicketGraph({
         </svg>
         {tickets.map((t) => {
           const p = posOf(t.id);
-          const st = g(t.state);
           const on = t.id === selId;
           return (
             <div
@@ -193,24 +182,14 @@ export default function TicketGraph({
                   cursor: "grab",
                 }}
               >
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: st.dot, flex: "none" }} />
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: stateDot(t.state), flex: "none" }} />
                 <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 12, color: on ? "#fff" : "#e8e9eb" }}>
                   {t.id}
                 </span>
                 <span style={{ flex: 1 }} />
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 10,
-                    fontWeight: 500,
-                    padding: "1px 5px",
-                    borderRadius: 2,
-                    background: st.pillBg,
-                    color: st.pillText,
-                  }}
-                >
-                  {st.label}
-                </span>
+                <Badge kind="state" value={t.state} tone="dark">
+                  {ticketState(t.state).short}
+                </Badge>
               </div>
               <div style={{ padding: "6px 9px" }}>
                 <div style={{ fontSize: 12, color: "#c9ccd1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

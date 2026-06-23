@@ -99,28 +99,6 @@
   }
 }
 
-// ── Status badges (chips) ─────────────────────────────────────────────────────
-.badge {
-  font-family: t.$font-mono;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 1px 5px;
-  border-radius: 2px;
-  white-space: nowrap;
-}
-.badgeClean {
-  color: #cee0ce;
-  background: #237723;
-}
-.badgeConflicts {
-  color: #3a2a00;
-  background: #e6b54c;
-}
-.badgeResolving {
-  color: #10333a;
-  background: t.$cyan;
-}
-
 // ── Main ──────────────────────────────────────────────────────────────────────
 .main {
   flex: 1;

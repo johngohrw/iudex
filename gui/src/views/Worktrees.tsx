@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { FileChange, FileDiff, Session, Workspace, Worktree } from "../types";
 import { useWorktrees } from "../lib/worktrees";
-import { stateColor } from "../components/StateBadge";
+import Badge from "../components/Badge";
 import ViewHeader from "../components/ViewHeader";
 import Button from "../components/Button";
 import s from "./Worktrees.module.scss";
@@ -152,12 +152,14 @@ export default function Worktrees({
             <span className={s.branch}>{wtLabel(w)}</span>
             <span className={s.badges}>
               {w.tickets.length === 0 ? (
-                <span className={`${s.badge} ${s.badgeMuted}`}>no ticket</span>
+                <Badge bg="#9c9c9c" fg="#565656">
+                  no ticket
+                </Badge>
               ) : (
                 w.tickets.map((t) => (
-                  <span key={t.id} className={`${s.badge} ${stateColor(t.state)}`}>
+                  <Badge key={t.id} kind="state" value={t.state}>
                     {t.id} · {t.state}
-                  </span>
+                  </Badge>
                 ))
               )}
             </span>
