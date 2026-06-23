@@ -170,5 +170,13 @@ export const VIEWS: { id: View; label: string; dot: string }[] = [
   { id: "settings", label: "Settings", dot: "#8a8f99" },
 ];
 
-// The left-nav rail order (Settings lives in the top-bar gear instead).
-export const RAIL_VIEWS = VIEWS.filter((v) => v.id !== "settings");
+// Side-channel views, pinned to the bottom of the rail (above the pipeline) —
+// useful but not part of the core queue→implement→QA→review→merge workflow.
+const SECONDARY_IDS: View[] = ["worktrees", "archive"];
+
+// The left-nav rail, split into a top (core workflow) and bottom (secondary)
+// group. Settings lives in the top-bar gear instead.
+export const RAIL_VIEWS = VIEWS.filter(
+  (v) => v.id !== "settings" && !SECONDARY_IDS.includes(v.id),
+);
+export const RAIL_SECONDARY = VIEWS.filter((v) => SECONDARY_IDS.includes(v.id));

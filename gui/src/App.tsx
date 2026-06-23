@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { RAIL_VIEWS, type View, type Workspace } from "./types";
+import { RAIL_VIEWS, RAIL_SECONDARY, type View, type Workspace } from "./types";
 import { useSessions } from "./lib/sessions";
 import Dashboard from "./views/Dashboard";
 import Tickets from "./views/Tickets";
@@ -320,6 +320,29 @@ export default function App() {
   ];
   const maxActive = ws?.maxActive ?? 0;
 
+  const navButton = (v: (typeof RAIL_VIEWS)[number]) => {
+    const on = view === v.id;
+    const count = navCounts[v.id];
+    return (
+      <button
+        key={v.id}
+        className={a.navItem}
+        onClick={() => setView(v.id)}
+        style={
+          on ? { borderLeftColor: "#f4bc41", background: "#1f2e90", color: "#e8e9eb" } : undefined
+        }
+      >
+        <span className={a.navDot} style={{ background: v.dot }} />
+        <span className={a.navLabel}>{v.label}</span>
+        {count !== undefined && count > 0 && (
+          <span className={a.navCount} style={on ? { color: "#cdd2ff" } : undefined}>
+            {count}
+          </span>
+        )}
+      </button>
+    );
+  };
+
   // Render a view inside a keep-alive host: present while mounted (or active),
   // shown only when it's the current view, hidden (not unmounted) otherwise.
   const renderView = (id: View, node: ReactNode) =>
@@ -368,32 +391,11 @@ export default function App() {
             <SectionHeader tone="dark" noBorder>
               VIEWS
             </SectionHeader>
-            {RAIL_VIEWS.map((v) => {
-              const on = view === v.id;
-              const count = navCounts[v.id];
-              return (
-                <button
-                  key={v.id}
-                  className={a.navItem}
-                  onClick={() => setView(v.id)}
-                  style={
-                    on
-                      ? { borderLeftColor: "#f4bc41", background: "#1f2e90", color: "#e8e9eb" }
-                      : undefined
-                  }
-                >
-                  <span className={a.navDot} style={{ background: v.dot }} />
-                  <span className={a.navLabel}>{v.label}</span>
-                  {count !== undefined && count > 0 && (
-                    <span className={a.navCount} style={on ? { color: "#cdd2ff" } : undefined}>
-                      {count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+            {RAIL_VIEWS.map(navButton)}
 
             <div className={a.railSpacer} />
+
+            {RAIL_SECONDARY.map(navButton)}
 
             <div className={a.railBottom}>
               <div className={a.pipeline}>
