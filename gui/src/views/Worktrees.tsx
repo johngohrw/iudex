@@ -64,6 +64,7 @@ export default function Worktrees({
       .then((c) => {
         if (!alive) return;
         setChanges(c);
+        setSelFile(c[0]?.path ?? null); // default-select the first file
         setPaneErr(null);
       })
       .catch((e) => alive && setPaneErr(String(e)));

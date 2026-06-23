@@ -1,8 +1,19 @@
 @use "../styles/tokens" as t;
 
+.view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.headerCount {
+  font-family: t.$font-mono;
+  font-size: 11px;
+  color: t.$text-muted;
+}
 .root {
   display: flex;
-  height: 100%;
+  flex: 1;
   min-height: 0;
 }
 
@@ -33,7 +44,6 @@
   padding: 7px 10px;
   cursor: pointer;
   border: none;
-  border-left: 3px solid transparent;
   border-bottom: 1px solid t.$divider-mid;
   background: transparent;
   font-family: t.$font-ui;
@@ -218,31 +228,30 @@
   color: t.$text;
 }
 
-// Ticket tab: state grid + brief.
+// Ticket tab: state grid + brief. Cells auto-fit and wrap at a 200px min width;
+// 1px gaps over a divider-colored backdrop draw clean grid lines (no per-cell
+// border math that breaks on wrap).
 .metaGrid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1px;
   border: 1px solid t.$divider-mid;
-  background: t.$panel-rail;
+  background: t.$divider-mid;
   margin-bottom: 14px;
 }
 .metaCell {
-  flex: 1;
-  min-width: 80px;
   padding: 7px 11px;
-  border-right: 1px solid t.$divider-mid;
-
-  &:last-child {
-    border-right: none;
-  }
+  background: t.$panel-rail;
 }
 .metaLabel {
   font-size: 10px;
   color: t.$text-muted;
+  margin-bottom: 2px;
 }
 .metaVal {
   font-family: t.$font-mono;
   color: t.$text;
+  word-break: break-all;
 }
 .doc {
   display: block;

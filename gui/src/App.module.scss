@@ -236,14 +236,14 @@
 }
 .pipeTitle {
   font-size: 10px;
-  color: t.$text-muted;
-  letter-spacing: 0.06em;
+  color: t.$text-meta;
+  letter-spacing: 0.08em;
   margin-bottom: 6px;
 }
 .pipeRows {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 10px;
   font-family: t.$font-mono;
   font-size: 11px;
 }

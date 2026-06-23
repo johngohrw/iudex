@@ -58,7 +58,9 @@ export default function ChangedFilesDiff({
             />
           </Suspense>
         ) : (
-          <div className={s.empty}>{changes.length > 0 ? pickHint : ""}</div>
+          <div className={s.empty}>
+            {changes.length > 0 && !selected ? pickHint : ""}
+          </div>
         )}
       </div>
     </div>

@@ -92,6 +92,13 @@ export default function Review({
     setMergeFile(null);
   }, [selId]);
 
+  // Default-select the first changed file so the Changes tab opens on a diff.
+  useEffect(() => {
+    setSelFile((prev) =>
+      changes.some((c) => c.path === prev) ? prev : (changes[0]?.path ?? null),
+    );
+  }, [changes]);
+
   // A worktree merge doesn't touch events.jsonl, so there's no doorbell while an
   // agent (or the user) resolves — poll the git state to keep the tab live.
   useEffect(() => {

@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { DiffEditor } from "@monaco-editor/react";
 import "../lib/monacoSetup";
+import { useDiffSideBySide } from "../lib/diffView";
 import s from "./DiffViewer.module.scss";
 
 // The shared read-only diff surface (Worktrees now, Review later). Shows a base
@@ -20,7 +21,8 @@ export default function DiffViewer({
   title?: ReactNode;
   actions?: ReactNode;
 }) {
-  const [sideBySide, setSideBySide] = useState(false); // inline by default
+  // Persisted globally so the inline/split choice is shared across all diffs.
+  const [sideBySide, setSideBySide] = useDiffSideBySide();
 
   return (
     <div className={s.diff}>
@@ -49,10 +51,14 @@ export default function DiffViewer({
           original={original}
           modified={modified}
           language={language || "plaintext"}
-          theme="vs-dark"
+          theme="iudex-light"
           options={{
             readOnly: true,
             renderSideBySide: sideBySide,
+            // Monaco auto-collapses split→inline below this width (default 900px);
+            // our diff pane is narrower, so disable the fallback to honor the toggle.
+            useInlineViewWhenSpaceIsLimited: false,
+            renderSideBySideInlineBreakpoint: 0,
             automaticLayout: true,
             minimap: { enabled: false },
             scrollBeyondLastLine: false,

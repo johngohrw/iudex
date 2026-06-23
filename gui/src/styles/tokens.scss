@@ -15,7 +15,7 @@ $module-surface: #2f333c; // dark panel headers (diff filename strip)
 $module-head: #20242e; // diff hunk header strip
 $panel-mid: #afafaf; // view headers, agent detail header
 $panel-light: #dadada; // active tab, light panel surface
-$panel-rail: #9c9c9c; // rail / sub-header background
+$panel-rail: #bdbdbd; // rail / panel / sub-header background
 $panel-detail: #828282; // detail-area background
 $dialog: #bdbdbd; // action bars
 $surface-c8: #c8c8c8; // field fills / selected file row
@@ -69,7 +69,7 @@ $sel-text-dim: rgba(255, 255, 255, 0.74);
 // ─────────────────────────────────────────────────────────────────────────────
 $bg: $module;
 $panel: $panel-mid;
-$hover: $panel-rail;
+$hover: #9c9c9c;
 $border: $divider-mid;
 $accent: $indigo;
 $text-dim: $text-muted;

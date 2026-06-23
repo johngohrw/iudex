@@ -8,11 +8,18 @@ import {
   useBriefTitles,
   type AgentStatus,
 } from "../lib/agents";
-import type { FileChange, FileDiff, Session, Ticket, Workspace } from "../types";
+import type {
+  FileChange,
+  FileDiff,
+  Session,
+  Ticket,
+  Workspace,
+} from "../types";
 import { useTicketDocs } from "../lib/tickets";
 import ChangedFilesDiff from "../components/ChangedFilesDiff";
 import Chip from "../components/Chip";
 import Button from "../components/Button";
+import ViewHeader from "../components/ViewHeader";
 import XtermPane from "./XtermPane";
 import s from "./Agents.module.scss";
 
@@ -31,24 +38,19 @@ const STATUS_COLOR: Record<AgentStatus, string> = {
 function StatusDot({ status }: { status: AgentStatus }) {
   return (
     <>
-      <span className={s.statusDot} style={{ background: STATUS_COLOR[status] }} />
+      <span
+        className={s.statusDot}
+        style={{ background: STATUS_COLOR[status] }}
+      />
       {STATUS_LABEL[status]}
     </>
   );
 }
 
-// Role as a Chip. impl/qa get the canonical cyan accent; others fall back.
-const ROLE_CHIP: Record<string, { bg: string; fg: string }> = {
-  impl: { bg: "#3a3f4a", fg: "#8ce8fa" },
-  qa: { bg: "#3a2f4a", fg: "#baa0fc" },
-};
+// Role chip — monochrome for every role (the design's default neutral Chip,
+// #404040 / #cfcfcf). Role is conveyed by the label text, not by color.
 function RoleChip({ role }: { role: string }) {
-  const c = ROLE_CHIP[role] ?? { bg: "#404040", fg: "#cfcfcf" };
-  return (
-    <Chip bg={c.bg} fg={c.fg}>
-      {role}
-    </Chip>
-  );
+  return <Chip>{role}</Chip>;
 }
 
 // Master-detail over the agent sessions in the tmux pool. The left rail lists
@@ -79,7 +81,9 @@ export default function Agents({
   const statuses = useAgentStatuses(agents, ws);
 
   const worktreeOf = (a: Session) =>
-    a.ticket ? (ws.tickets.find((t) => t.id === a.ticket)?.worktree ?? null) : null;
+    a.ticket
+      ? (ws.tickets.find((t) => t.id === a.ticket)?.worktree ?? null)
+      : null;
   const titles = useBriefTitles(
     agents.flatMap((a) => {
       const w = worktreeOf(a);
@@ -109,7 +113,9 @@ export default function Agents({
   };
   const clearFinished = async () => {
     await Promise.all(
-      agents.filter((a) => isFinished(statuses[a.name])).map((a) => kill(a.name)),
+      agents
+        .filter((a) => isFinished(statuses[a.name]))
+        .map((a) => kill(a.name)),
     );
   };
 
@@ -118,16 +124,22 @@ export default function Agents({
       <div className="stub">
         <h2>Agents</h2>
         <p>
-          tmux isn't on PATH — agent sessions live in the tmux pool. Install it with{" "}
-          <code>brew install tmux</code> and reopen this view.
+          tmux isn't on PATH — agent sessions live in the tmux pool. Install it
+          with <code>brew install tmux</code> and reopen this view.
         </p>
       </div>
     );
   }
 
   return (
-    <div className={s.root}>
-      <aside className={s.rail}>
+    <div className={s.view}>
+      <ViewHeader dot="#5ccf5c" title="Agents">
+        <span className={s.headerCount}>
+          {agents.length} agent{agents.length === 1 ? "" : "s"}
+        </span>
+      </ViewHeader>
+      <div className={s.root}>
+        <aside className={s.rail}>
         <div className={s.list}>
           {agents.length === 0 && (
             <div className={`${s.empty} muted`}>
@@ -142,7 +154,6 @@ export default function Agents({
                 key={a.name}
                 className={`${s.card} ${a.name === selName ? s.active : ""}`}
                 onClick={() => setSelName(a.name)}
-                style={{ borderLeftColor: STATUS_COLOR[status] }}
               >
                 <span className={s.cardTop}>
                   <span className={s.cardId}>{a.ticket ?? "agent"}</span>
@@ -176,7 +187,9 @@ export default function Agents({
             ws={ws}
             root={root}
             status={statuses[selected.name] ?? "idle"}
-            title={(worktreeOf(selected) && titles[worktreeOf(selected)!]) || ""}
+            title={
+              (worktreeOf(selected) && titles[worktreeOf(selected)!]) || ""
+            }
             worktree={worktreeOf(selected)}
             onDismiss={() => setSelName(null)}
             onKill={async () => {
@@ -189,6 +202,7 @@ export default function Agents({
             {agents.length > 0 ? "Select an agent." : ""}
           </div>
         )}
+        </div>
       </div>
     </div>
   );
@@ -216,7 +230,9 @@ function AgentDetail({
   onKill: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("console");
-  const ticket = agent.ticket ? (ws.tickets.find((t) => t.id === agent.ticket) ?? null) : null;
+  const ticket = agent.ticket
+    ? (ws.tickets.find((t) => t.id === agent.ticket) ?? null)
+    : null;
 
   return (
     <div className={s.detail}>
@@ -228,10 +244,19 @@ function AgentDetail({
         <span className={s.headStatus}>
           <StatusDot status={status} />
         </span>
-        <Button variant="danger" size="sm" onClick={onKill} title="kill this agent">
+        <Button
+          variant="danger"
+          size="sm"
+          onClick={onKill}
+          title="kill this agent"
+        >
           kill agent
         </Button>
-        <button className={s.x} title="dismiss panel (agent keeps running)" onClick={onDismiss}>
+        <button
+          className={s.x}
+          title="dismiss panel (agent keeps running)"
+          onClick={onDismiss}
+        >
           ✕
         </button>
       </header>
@@ -251,7 +276,10 @@ function AgentDetail({
       <div className={s.content}>
         {/* Console stays mounted while this agent is selected so switching tabs
             never tears down its PTY; only its visibility toggles. */}
-        <div className={s.console} style={{ display: tab === "console" ? "block" : "none" }}>
+        <div
+          className={s.console}
+          style={{ display: tab === "console" ? "block" : "none" }}
+        >
           <XtermPane session={agent.name} active={tab === "console"} />
         </div>
         {tab === "worktree" &&
@@ -260,20 +288,28 @@ function AgentDetail({
           ) : (
             <div className={`${s.pad} muted`}>This agent has no worktree.</div>
           ))}
-        {tab === "ticket" && (
-          ticket
-            ? <TicketBrief root={root} ticket={ticket} role={agent.role ?? "—"} />
-            : <div className={`${s.pad} muted`}>No ticket for this agent.</div>
-        )}
+        {tab === "ticket" &&
+          (ticket ? (
+            <TicketBrief root={root} ticket={ticket} role={agent.role ?? "—"} />
+          ) : (
+            <div className={`${s.pad} muted`}>No ticket for this agent.</div>
+          ))}
       </div>
     </div>
   );
 }
 
-
 // The ticket brief shown in the Agents panel ticket tab — a simple read-only
 // display of the brief text, without the full TicketDetail panel chrome.
-function TicketBrief({ root, ticket, role }: { root: string; ticket: Ticket; role: string }) {
+function TicketBrief({
+  root,
+  ticket,
+  role,
+}: {
+  root: string;
+  ticket: Ticket;
+  role: string;
+}) {
   const { docs, loading } = useTicketDocs(root, ticket);
   const cells: [string, string][] = [
     ["STATE", ticket.state],
@@ -293,15 +329,25 @@ function TicketBrief({ root, ticket, role }: { root: string; ticket: Ticket; rol
         ))}
       </div>
       {loading && <span className="muted">loading…</span>}
-      {!loading && docs?.brief?.trim() && <pre className={s.doc}>{docs.brief}</pre>}
-      {!loading && !docs?.brief?.trim() && <span className="muted">(no brief)</span>}
+      {!loading && docs?.brief?.trim() && (
+        <pre className={s.doc}>{docs.brief}</pre>
+      )}
+      {!loading && !docs?.brief?.trim() && (
+        <span className="muted">(no brief)</span>
+      )}
     </div>
   );
 }
 
 // The selected agent's worktree changes vs main (two-dot, so the agent's
 // uncommitted progress shows). Fetches; the shared ChangedFilesDiff renders.
-function WorktreePanel({ worktree, mainBranch }: { worktree: string; mainBranch: string }) {
+function WorktreePanel({
+  worktree,
+  mainBranch,
+}: {
+  worktree: string;
+  mainBranch: string;
+}) {
   const [changes, setChanges] = useState<FileChange[]>([]);
   const [selFile, setSelFile] = useState<string | null>(null);
   const [diff, setDiff] = useState<FileDiff | null>(null);
@@ -310,7 +356,14 @@ function WorktreePanel({ worktree, mainBranch }: { worktree: string; mainBranch:
   useEffect(() => {
     let alive = true;
     invoke<FileChange[]>("worktree_changes", { worktree, mainBranch })
-      .then((c) => alive && setChanges(c))
+      .then((c) => {
+        if (!alive) return;
+        setChanges(c);
+        // Default-select the first file so a diff shows immediately.
+        setSelFile((prev) =>
+          c.some((x) => x.path === prev) ? prev : (c[0]?.path ?? null),
+        );
+      })
       .catch((e) => alive && setErr(String(e)));
     return () => {
       alive = false;
@@ -323,7 +376,11 @@ function WorktreePanel({ worktree, mainBranch }: { worktree: string; mainBranch:
       return;
     }
     let alive = true;
-    invoke<FileDiff>("worktree_file_diff", { worktree, path: selFile, mainBranch })
+    invoke<FileDiff>("worktree_file_diff", {
+      worktree,
+      path: selFile,
+      mainBranch,
+    })
       .then((d) => alive && setDiff(d))
       .catch((e) => alive && setErr(String(e)));
     return () => {
@@ -344,7 +401,9 @@ function WorktreePanel({ worktree, mainBranch }: { worktree: string; mainBranch:
           variant="quiet"
           size="sm"
           onClick={() =>
-            invoke("open_in_editor", { path: `${worktree}/${selFile}` }).catch(() => {})
+            invoke("open_in_editor", { path: `${worktree}/${selFile}` }).catch(
+              () => {},
+            )
           }
         >
           Open in editor

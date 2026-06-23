@@ -4,24 +4,24 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: t.$module;
+  background: t.$panel-light;
 }
 
-// Dark filename strip atop the Monaco diff (DESIGN.md: diff stays dark).
+// Light filename strip atop the Monaco diff.
 .head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   padding: 5px 11px;
-  background: t.$module-head;
-  border-bottom: 1px solid t.$divider-dark;
+  background: t.$panel-mid;
+  border-bottom: 1px solid t.$divider-mid;
 }
 
 .title {
   font-family: t.$font-mono;
   font-size: 11px;
-  color: t.$text-bright;
+  color: t.$text;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -36,21 +36,21 @@
 
 .seg {
   display: flex;
-  border: 1px solid #3a3f4a;
+  border: 1px solid t.$divider-mid;
 
   button {
     padding: 1px 9px;
     border: none;
     background: transparent;
-    color: t.$text-meta;
+    color: t.$text-muted;
     cursor: pointer;
     font-size: 11px;
     font-family: t.$font-ui;
   }
 
   button.on {
-    background: #3a3f4a;
-    color: t.$text-bright;
+    background: t.$panel-light;
+    color: t.$text;
   }
 }
 
