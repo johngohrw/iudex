@@ -4,3 +4,8 @@ test/
 .dev-skills/
 .test-projects/
 .sessions/
+
+# Design reference: keep DESIGN.md + DC sources, drop the stale image artifacts.
+gui-design/screenshots/
+gui-design/uploads/
+.DS_Store

@@ -1,0 +1,9 @@
+/* ===========================================================================
+   FONTS — webfont declarations
+   The Live UI uses a custom neutral grotesk. Closest faithful, freely-licensed
+   substitutes: IBM Plex Sans (UI grotesk, tall x-height, true tabular figures)
+   and IBM Plex Mono (numeric / scrub fields). SUBSTITUTION — flag to user.
+   Loaded from Google Fonts so consumers get the binaries via these @font-face
+   src targets.
+   =========================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');

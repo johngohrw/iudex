@@ -1,0 +1,85 @@
+/* ===========================================================================
+   COLOR SYSTEM — Ableton Live
+   Two-tier depth: light "Canvas" (organize) vs dark "Module" (operate).
+   Color is information, never decoration. Functional accents are load-bearing.
+   =========================================================================== */
+:root {
+  /* --- Structural neutrals · Canvas layer -------------------------------- */
+  --canvas-bg:            #929292; /* main workspace background */
+  --canvas-chrome:        #565656; /* toolbar, top bar, dense chrome strips  */
+  --canvas-chrome-dark:   #3f3f3f; /* deeper chrome / status bar             */
+  --canvas-panel:         #afafaf; /* secondary light panels                 */
+  --canvas-panel-light:   #c8c8c8; /* lighter panel                          */
+  --canvas-panel-lighter: #dadada; /* dialog / lightest panel variant        */
+  --canvas-row:           #9c9c9c; /* list row default                       */
+  --canvas-row-alt:       #969696; /* alternating list row                   */
+  --canvas-divider:       #6f6f6f; /* 1px structural divider on canvas       */
+  --canvas-text:          #2a2a2a; /* near-black text on light surfaces      */
+  --canvas-text-dim:      #565656; /* dimmer secondary text on canvas        */
+
+  /* --- Deep surface · Module layer -------------------------------------- */
+  --module-bg:        #20242e; /* device / instrument panel background     */
+  --module-bg-alt:    #1d1d1d; /* alt device background                    */
+  --module-panel:     #2f333c; /* sub-panel within a module                */
+  --module-panel-hi:  #3a3f4a; /* raised sub-panel / hover                 */
+  --module-divider:   #14171d; /* 1px divider inside module                */
+  --module-grid:      #2b2f38; /* graph / curve grid lines                 */
+  --module-text:      #e8e9eb; /* text on dark surfaces                    */
+  --module-text-dim:  #8a8f99; /* dim label text on dark surfaces          */
+
+  /* --- Functional accents · reserved, one meaning each ------------------ */
+  --accent-amber:   #f4bc41; /* PRIMARY active / "on" / recording context  */
+  --accent-amber-hi:#ffcf5e; /* amber hover                                */
+  --accent-cyan:    #5bc7d8; /* selection / value-being-edited / playhead  */
+  --accent-cyan-hi: #6de6fc; /* bright cyan                                */
+  --accent-ice:     #8ce8fa; /* secondary visible state (e.g. Hide pill)   */
+  --accent-mint:    #72f6aa; /* graph / curve / level accent (low)         */
+  --accent-indigo:  #1f2e90; /* active / focused selection row background  */
+  --accent-red:     #e0584c; /* record-armed / transport record           */
+  --accent-green:   #5ccf5c; /* transport PLAYING (play triangle goes green) */
+  --accent-green-hi:#6fe06f;
+
+  /* --- User color-coding palette (track / clip identity) ---------------- */
+  /* Sampled across the reference shots — medium-saturation pastels that sit in
+     one tonal band so no track shouts over another. Live ships ~70 of these. */
+  --user-cyan:       #6de6fc;
+  --user-mauve:      #baa0bc;
+  --user-violet:     #836ddd;
+  --user-teal:       #56bcaf;
+  --user-mint:       #dcfce3;
+  --user-ice:        #d4f0f7;
+  --user-periwinkle: #9ea0e0; /* drums / blue clip groups   */
+  --user-yellow:     #e4e47a; /* keys                       */
+  --user-salmon:     #efa3a0; /* ambience / vocals          */
+  --user-tan:        #d8b48a; /* pads / organ               */
+  --user-lavender:   #c3b5e8;
+
+  /* --- Meter gradient stops --------------------------------------------- */
+  --meter-low:  #72f6aa;
+  --meter-mid:  #5bc7d8;
+  --meter-peak: #f4bc41;
+  --meter-clip: #e0584c;
+
+  /* =========================================================================
+     SEMANTIC ALIASES — reference these in components, not raw values above
+     ========================================================================= */
+  --surface-canvas:        var(--canvas-bg);
+  --surface-chrome:        var(--canvas-chrome);
+  --surface-panel:         var(--canvas-panel);
+  --surface-dialog:        var(--canvas-panel-lighter);
+  --surface-module:        var(--module-bg);
+  --surface-module-panel:  var(--module-panel);
+
+  --text-on-canvas:        var(--canvas-text);
+  --text-on-canvas-dim:    var(--canvas-text-dim);
+  --text-on-module:        var(--module-text);
+  --text-on-module-dim:    var(--module-text-dim);
+
+  --state-active:          var(--accent-amber);
+  --state-editing:         var(--accent-cyan);
+  --state-selected-row:    var(--accent-indigo);
+  --state-record:          var(--accent-red);
+
+  --border-divider:        var(--canvas-divider);
+  --focus-ring:            var(--accent-cyan);
+}

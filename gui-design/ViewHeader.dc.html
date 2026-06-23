@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="height:30px; flex:none; display:flex; align-items:center; gap:9px; padding:0 12px; background:#afafaf; border-bottom:1px solid #6f6f6f; white-space:nowrap;">
+  <span style="width:8px; height:8px; border-radius:50%; background:{{ dot }}; flex:none;"></span>
+  <span style="font-size:14px; font-weight:600;">{{ title }}</span>
+  <sc-if value="{{ hasSubtitle }}"><span style="font-size:11px; color:#565656;">{{ subtitle }}</span></sc-if>
+  <span style="flex:1;"></span>
+  {{ children }}
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:640,&quot;height&quot;:30},&quot;dot&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#f4bc41&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;title&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Dashboard&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;subtitle&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;what needs me right now&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const p = this.props;
+    return {
+      dot: p.dot || '#8a8f99',
+      title: p.title || '',
+      subtitle: p.subtitle || '',
+      hasSubtitle: !!p.subtitle,
+      children: p.children || '',
+    };
+  }
+}
+</script>
+</body>
+</html>
