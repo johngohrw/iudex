@@ -11,25 +11,43 @@ import {
 import type { FileChange, FileDiff, Session, Ticket, Workspace } from "../types";
 import { useTicketDocs } from "../lib/tickets";
 import ChangedFilesDiff from "../components/ChangedFilesDiff";
+import Chip from "../components/Chip";
+import Button from "../components/Button";
 import XtermPane from "./XtermPane";
 import s from "./Agents.module.scss";
 
-// Maps a synthesized agent status to its scoped pill class.
-const STATUS_CLASS: Record<AgentStatus, string> = {
-  working: s.working,
-  idle: s.idle,
-  "awaiting-finish": s.awaitingFinish,
-  "review-ready": s.reviewReady,
-  crashed: s.crashed,
-  done: s.done,
-  gone: s.gone,
+// Synthesized agent status → its signal color (DESIGN.md: color is state).
+const STATUS_COLOR: Record<AgentStatus, string> = {
+  working: "#5ccf5c",
+  idle: "#f4bc41",
+  "awaiting-finish": "#f4bc41",
+  "review-ready": "#836ddd",
+  crashed: "#e0584c",
+  done: "#5ccf5c",
+  gone: "#565656",
 };
 
-function StatusPill({ status }: { status: AgentStatus }) {
+// A status as a colored dot + label — the rail/header status indicator.
+function StatusDot({ status }: { status: AgentStatus }) {
   return (
-    <span className={`${s.status} ${STATUS_CLASS[status] ?? ""}`}>
+    <>
+      <span className={s.statusDot} style={{ background: STATUS_COLOR[status] }} />
       {STATUS_LABEL[status]}
-    </span>
+    </>
+  );
+}
+
+// Role as a Chip. impl/qa get the canonical cyan accent; others fall back.
+const ROLE_CHIP: Record<string, { bg: string; fg: string }> = {
+  impl: { bg: "#3a3f4a", fg: "#8ce8fa" },
+  qa: { bg: "#3a2f4a", fg: "#baa0fc" },
+};
+function RoleChip({ role }: { role: string }) {
+  const c = ROLE_CHIP[role] ?? { bg: "#404040", fg: "#cfcfcf" };
+  return (
+    <Chip bg={c.bg} fg={c.fg}>
+      {role}
+    </Chip>
   );
 }
 
@@ -124,14 +142,17 @@ export default function Agents({
                 key={a.name}
                 className={`${s.card} ${a.name === selName ? s.active : ""}`}
                 onClick={() => setSelName(a.name)}
+                style={{ borderLeftColor: STATUS_COLOR[status] }}
               >
                 <span className={s.cardTop}>
                   <span className={s.cardId}>{a.ticket ?? "agent"}</span>
                   <span className={s.cardTitle}>{(w && titles[w]) || ""}</span>
                 </span>
                 <span className={s.cardBot}>
-                  <span className={s.cardRole}>{a.role ?? "agent"}</span>
-                  <StatusPill status={status} />
+                  <RoleChip role={a.role ?? "agent"} />
+                  <span className={s.cardStatus}>
+                    <StatusDot status={status} />
+                  </span>
                 </span>
               </button>
             );
@@ -141,9 +162,9 @@ export default function Agents({
           <span className="muted">
             {agents.length} agent{agents.length === 1 ? "" : "s"}
           </span>
-          <button className="ghost" onClick={clearFinished} title="dismiss done & crashed agents">
+          <Button variant="quiet" size="sm" onClick={clearFinished}>
             clear all finished
-          </button>
+          </Button>
         </div>
       </aside>
 
@@ -200,17 +221,19 @@ function AgentDetail({
   return (
     <div className={s.detail}>
       <header className={s.head}>
-        <div className={s.headInfo}>
-          <span className={s.headId}>{agent.ticket ?? "agent"}</span>
-          <span className={s.headRole}>{agent.role ?? "agent"}</span>
-          {title && <span className={s.headTitle}>{title}</span>}
-        </div>
-        <div className={s.headRight}>
-          <StatusPill status={status} />
-          <button className={s.x} title="dismiss panel (agent keeps running)" onClick={onDismiss}>
-            ✕
-          </button>
-        </div>
+        <span className={s.headId}>agent·{agent.ticket ?? "—"}</span>
+        <RoleChip role={agent.role ?? "agent"} />
+        {title && <span className={s.headTitle}>{title}</span>}
+        {!title && <span className={s.headTitle} />}
+        <span className={s.headStatus}>
+          <StatusDot status={status} />
+        </span>
+        <Button variant="danger" size="sm" onClick={onKill} title="kill this agent">
+          kill agent
+        </Button>
+        <button className={s.x} title="dismiss panel (agent keeps running)" onClick={onDismiss}>
+          ✕
+        </button>
       </header>
 
       <nav className={s.tabs}>
@@ -223,10 +246,6 @@ function AgentDetail({
             {t}
           </button>
         ))}
-        <span className={s.tabsSpacer} />
-        <button className="esc danger" title="kill this agent" onClick={onKill}>
-          kill agent
-        </button>
       </nav>
 
       <div className={s.content}>
@@ -243,7 +262,7 @@ function AgentDetail({
           ))}
         {tab === "ticket" && (
           ticket
-            ? <TicketBrief root={root} ticket={ticket} />
+            ? <TicketBrief root={root} ticket={ticket} role={agent.role ?? "—"} />
             : <div className={`${s.pad} muted`}>No ticket for this agent.</div>
         )}
       </div>
@@ -254,10 +273,25 @@ function AgentDetail({
 
 // The ticket brief shown in the Agents panel ticket tab — a simple read-only
 // display of the brief text, without the full TicketDetail panel chrome.
-function TicketBrief({ root, ticket }: { root: string; ticket: Ticket }) {
+function TicketBrief({ root, ticket, role }: { root: string; ticket: Ticket; role: string }) {
   const { docs, loading } = useTicketDocs(root, ticket);
+  const cells: [string, string][] = [
+    ["STATE", ticket.state],
+    ["ROLE", role],
+    ["WORKTREE", ticket.worktree || "—"],
+    ["DEPS", ticket.deps.length ? ticket.deps.join(" ") : "—"],
+    ["QA REJECTS", String(ticket.qaRejects)],
+  ];
   return (
     <div className={s.pad}>
+      <div className={s.metaGrid}>
+        {cells.map(([label, val]) => (
+          <div key={label} className={s.metaCell}>
+            <div className={s.metaLabel}>{label}</div>
+            <div className={s.metaVal}>{val}</div>
+          </div>
+        ))}
+      </div>
       {loading && <span className="muted">loading…</span>}
       {!loading && docs?.brief?.trim() && <pre className={s.doc}>{docs.brief}</pre>}
       {!loading && !docs?.brief?.trim() && <span className="muted">(no brief)</span>}
@@ -306,14 +340,15 @@ function WorktreePanel({ worktree, mainBranch }: { worktree: string; mainBranch:
       error={err}
       noChangesHint="no changes vs main"
       fileActions={
-        <button
-          className="esc"
+        <Button
+          variant="quiet"
+          size="sm"
           onClick={() =>
             invoke("open_in_editor", { path: `${worktree}/${selFile}` }).catch(() => {})
           }
         >
           Open in editor
-        </button>
+        </Button>
       }
     />
   );

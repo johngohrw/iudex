@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { VIEWS, type View, type Workspace } from "./types";
+import { RAIL_VIEWS, type View, type Workspace } from "./types";
 import { useSessions } from "./lib/sessions";
 import Dashboard from "./views/Dashboard";
 import Tickets from "./views/Tickets";
@@ -11,6 +11,7 @@ import Agents from "./views/Agents";
 import Worktrees from "./views/Worktrees";
 import Review from "./views/Review";
 import Settings from "./views/Settings";
+import SectionHeader from "./components/SectionHeader";
 import "./styles/base.scss";
 import a from "./App.module.scss";
 
@@ -29,7 +30,8 @@ export default function App() {
   const [offerInit, setOfferInit] = useState(false);
   const [initing, setIniting] = useState(false);
   const [lastSync, setLastSync] = useState<string>("");
-  const [view, setView] = useState<View>("dashboard");
+  // Land on Tickets: the Dashboard reskin is deferred (still the old dark style).
+  const [view, setView] = useState<View>("tickets");
   const [focusSession, setFocusSession] = useState<string | null>(null);
   const [focusTicket, setFocusTicket] = useState<string | null>(null);
   const [focusAgent, setFocusAgent] = useState<string | null>(null);
@@ -213,6 +215,15 @@ export default function App() {
     })();
   }, [autoQA, root, ws, sessions]);
 
+  // While either automation is on, poll the workspace every ~7s so the drains
+  // above re-evaluate on a steady cadence (not only on the events doorbell) —
+  // freeing slots / newly-queued / newly-pending-qa tickets get picked up.
+  useEffect(() => {
+    if (!root || (!autoActivate && !autoQA)) return;
+    const h = setInterval(() => load(root), 7000);
+    return () => clearInterval(h);
+  }, [autoActivate, autoQA, root, load]);
+
   // ── Splash: no workspace open yet ──────────────────────────────────────────
   if (!root && !offerInit) {
     return (
@@ -247,38 +258,169 @@ export default function App() {
   }
 
   // ── Workspace open ─────────────────────────────────────────────────────────
+  const tickets = ws?.tickets ?? [];
+  const cnt = (st: string) => tickets.filter((t) => t.state === st).length;
+  const activeCount = cnt("active");
+  const navCounts: Partial<Record<View, number>> = {
+    terminal: sessions.length,
+    tickets: tickets.filter((t) => t.state !== "removed").length,
+    agents: sessions.filter((s) => s.kind === "agent").length,
+    worktrees: new Set(
+      tickets.filter((t) => t.hasWorktree && t.worktree).map((t) => t.worktree)
+    ).size,
+    review: cnt("pending-human-qa"),
+  };
+  const pipeline = [
+    { n: cnt("queued"), label: "Queued", color: "#cfcfcf" },
+    { n: activeCount, label: "Active", color: "#f4bc41" },
+    { n: cnt("pending-qa"), label: "QA", color: "#5bc7d8" },
+    { n: cnt("pending-human-qa"), label: "Review", color: "#836ddd" },
+    { n: cnt("done"), label: "Merged", color: "#5ccf5c" },
+  ];
+  const maxActive = ws?.maxActive ?? 0;
+
   return (
     <main className={a.app}>
-      <header className={a.bar}>
-        <button className={a.wsName} onClick={pickAndOpen} title={root ?? ""}>
-          {root ? basename(root) : ""}
-        </button>
-        {ws && (
-          <span className={a.meta}>
-            main: <b>{ws.mainBranch}</b> · max-active: <b>{ws.maxActive}</b> · qa-limit:{" "}
-            <b>{ws.qaRejectLimit}</b>
-            {lastSync && <span className={a.sync}> · synced {lastSync}</span>}
-          </span>
-        )}
+      <header className={a.topbar}>
+        <div className={a.brand}>
+          <span className={a.brandDot} />
+          <span className={a.brandName}>iudex</span>
+        </div>
+        <div
+          className={a.wsPicker}
+          onClick={pickAndOpen}
+          title={`${root ?? ""}${lastSync ? ` · synced ${lastSync}` : ""}`}
+        >
+          <span className={a.wsTag}>WS</span>
+          <span className={a.wsPath}>{root ? basename(root) : ""}</span>
+          <span className={a.wsChev}>▾</span>
+        </div>
+        <div className={a.spacer} />
+        <div
+          className={`${a.gear} ${view === "settings" ? a.gearActive : ""}`}
+          onClick={() => setView("settings")}
+        >
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.2">
+            <circle cx="5.5" cy="5.5" r="1.8" />
+            <path d="M5.5 1v1M5.5 9v1M1 5.5h1M9 5.5h1M2.3 2.3l.7.7M8 8l.7.7M8.7 2.3l-.7.7M3 8l-.7.7" />
+          </svg>
+          <span>Settings</span>
+        </div>
       </header>
 
-      {error && <div className="error">{error}</div>}
-
       {root && ws && (
-        <>
-          <nav className={a.nav}>
-            {VIEWS.map((v) => (
-              <button
-                key={v.id}
-                className={`${a.navItem} ${view === v.id ? a.active : ""}`}
-                onClick={() => setView(v.id)}
-              >
-                {v.label}
-              </button>
-            ))}
+        <div className={a.body}>
+          <nav className={a.rail}>
+            <SectionHeader tone="dark" noBorder>
+              VIEWS
+            </SectionHeader>
+            {RAIL_VIEWS.map((v) => {
+              const on = view === v.id;
+              const count = navCounts[v.id];
+              return (
+                <button
+                  key={v.id}
+                  className={a.navItem}
+                  onClick={() => setView(v.id)}
+                  style={
+                    on
+                      ? { borderLeftColor: "#f4bc41", background: "#1f2e90", color: "#e8e9eb" }
+                      : undefined
+                  }
+                >
+                  <span className={a.navDot} style={{ background: v.dot }} />
+                  <span className={a.navLabel}>{v.label}</span>
+                  {count !== undefined && count > 0 && (
+                    <span className={a.navCount} style={on ? { color: "#cdd2ff" } : undefined}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+
+            <div className={a.railSpacer} />
+
+            <div className={a.railBottom}>
+              <div className={a.pipeline}>
+                <div className={a.pipeTitle}>PIPELINE</div>
+                <div className={a.pipeRows}>
+                  {pipeline.map((p) => (
+                    <div key={p.label} className={a.pipeRow}>
+                      <span className={a.pipeNum} style={{ color: p.color }}>
+                        {p.n}
+                      </span>
+                      <span className={a.pipeLabel}>{p.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className={a.transport}>
+                <div className={a.transportBtns}>
+                  <span
+                    className={`${a.tBtn} ${autoActivate && autoQA ? a.tActive : ""}`}
+                    title="Start automation (Auto-Activate + Auto-QA on)"
+                    onClick={() => {
+                      toggleAutoActivate(true);
+                      toggleAutoQA(true);
+                    }}
+                  >
+                    <span className={a.playTri} />
+                  </span>
+                  <span
+                    className={`${a.tBtn} ${!autoActivate && !autoQA ? a.tActive : ""}`}
+                    title="Stop automation (both off)"
+                    onClick={() => {
+                      toggleAutoActivate(false);
+                      toggleAutoQA(false);
+                    }}
+                  >
+                    <span className={a.stopSq} />
+                  </span>
+                </div>
+                <div className={a.toggles}>
+                  <div className={a.toggleRow}>
+                    <span className={a.toggleLabel}>Auto-Activate</span>
+                    <span
+                      className={`${a.toggle} ${autoActivate ? a.toggleOn : a.toggleOff}`}
+                      onClick={() => toggleAutoActivate(!autoActivate)}
+                    >
+                      <span className={a.knob} />
+                    </span>
+                  </div>
+                  <div className={a.toggleRow}>
+                    <span className={a.toggleLabel}>Auto-QA</span>
+                    <span
+                      className={`${a.toggle} ${autoQA ? a.toggleOn : a.toggleOff}`}
+                      onClick={() => toggleAutoQA(!autoQA)}
+                    >
+                      <span className={a.knob} />
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className={a.sysinfo}>
+                <div className={a.sysBranch}>{ws.mainBranch}</div>
+                <div>
+                  {activeCount}
+                  {maxActive > 0 ? ` / ${maxActive}` : ""} active
+                </div>
+                <div>events.jsonl · live</div>
+                {maxActive > 0 && (
+                  <div className={a.sysBar}>
+                    {Array.from({ length: maxActive }).map((_, i) => (
+                      <span key={i} className={`${a.sysSeg} ${i < activeCount ? a.on : ""}`} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </nav>
 
-          <section className={a.view}>
+          <section className={a.main}>
+            {error && <div className="error">{error}</div>}
             {view === "dashboard" && (
               <Dashboard
                 ws={ws}
@@ -351,7 +493,7 @@ export default function App() {
               <Settings root={root} onConfigSaved={() => load(root)} />
             )}
           </section>
-        </>
+        </div>
       )}
     </main>
   );

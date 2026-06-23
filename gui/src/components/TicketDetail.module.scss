@@ -6,36 +6,37 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: t.$surface-c8;
 }
 
-// ── Header ────────────────────────────────────────────
+// ── Header (30px) ─────────────────────────────────────
 .header {
+  height: 30px;
+  flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px 8px;
-  border-bottom: 1px solid t.$border;
-  flex-shrink: 0;
+  padding: 0 10px;
+  background: t.$panel-rail;
+  border-bottom: 1px solid t.$divider-mid;
 }
-
 .headId {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: t.$font-mono;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 12px;
+  color: t.$text;
 }
-
 .headClose {
   margin-left: auto;
   border: none;
   background: transparent;
-  color: t.$muted;
+  color: t.$text-muted;
   cursor: pointer;
   font-size: 14px;
-  padding: 2px 6px;
-  border-radius: 6px;
+  line-height: 1;
+  padding: 0 2px;
 
   &:hover {
-    background: t.$hover;
     color: t.$text;
   }
 }
@@ -43,40 +44,35 @@
 // ── Title row ─────────────────────────────────────────
 .titleRow {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
-  padding: 10px 12px 6px;
+  padding: 9px 10px;
+  border-bottom: 1px solid t.$divider-mid;
   flex-shrink: 0;
 }
-
 .titleText {
   flex: 1;
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 600;
   color: t.$text;
   line-height: 1.3;
-  word-break: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
 .titleInput {
   flex: 1;
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 600;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
+  background: t.$field-edit;
+  border: 1px solid t.$field-border;
   color: t.$text;
-  padding: 2px 6px;
-  margin: -2px -6px;
-
-  &:hover {
-    border-color: t.$border;
-  }
+  padding: 3px 7px;
+  font-family: t.$font-ui;
 
   &:focus {
     outline: none;
-    border-color: t.$accent;
-    background: t.$bg;
+    border-color: t.$amber;
   }
 }
 
@@ -85,55 +81,46 @@
   position: relative;
   flex-shrink: 0;
 }
-
 .menuBtn {
-  border: 1px solid t.$border;
+  border: none;
   background: transparent;
-  color: t.$muted;
+  color: t.$text-muted;
   cursor: pointer;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
-  padding: 2px 8px;
-  border-radius: 6px;
+  padding: 0 4px;
 
   &:hover {
-    background: t.$hover;
     color: t.$text;
   }
 }
-
 .menu {
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  min-width: 160px;
-  background: t.$panel;
-  border: 1px solid t.$border;
-  border-radius: 8px;
+  min-width: 150px;
+  background: t.$panel-mid;
+  border: 1px solid t.$divider-mid;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   z-index: 10;
-  overflow: hidden;
 }
-
 .menuItem {
   display: block;
   width: 100%;
-  padding: 8px 14px;
+  padding: 6px 12px;
   border: none;
   background: transparent;
   color: t.$text;
   text-align: left;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
 
   &:hover {
-    background: t.$hover;
+    background: t.$surface-c8;
   }
-
   &.danger {
-    color: t.$red;
+    color: t.$danger;
   }
-
   &:disabled {
     opacity: 0.4;
     cursor: default;
@@ -145,66 +132,59 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px 12px 12px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
 }
 
-// ── Labeled section (fieldset-style) ──────────────────
+// ── Labeled section (flat overline + content) ─────────
 .section {
-  border: 1px solid t.$border;
-  border-radius: 8px;
-  padding: 12px;
-  position: relative;
-  margin-top: 6px;
-}
+  margin-top: 10px;
 
+  &:first-child {
+    margin-top: 0;
+  }
+}
 .sectionLabel {
-  position: absolute;
-  top: -9px;
-  left: 10px;
-  background: t.$panel;
-  padding: 0 6px;
-  font-size: 11px;
-  color: t.$muted;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: lowercase;
+  display: block;
+  margin-bottom: 5px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: t.$text-muted;
+  text-transform: uppercase;
 }
 
 // ── Brief section ─────────────────────────────────────
 .briefDoc {
   margin: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+  display: block;
+  background: t.$field-read;
+  border: 1px solid t.$field-border;
+  padding: 8px 9px;
+  font-family: t.$font-mono;
+  font-size: 11px;
   line-height: 1.6;
-  color: t.$text-dim;
+  color: t.$text;
   white-space: pre-wrap;
   word-break: break-word;
 }
-
 .briefTextarea {
   width: 100%;
   min-height: 120px;
-  background: transparent;
-  border: none;
-  color: t.$text-dim;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+  background: t.$field-edit;
+  border: 1px solid t.$field-border;
+  color: t.$text;
+  font-family: t.$font-mono;
+  font-size: 11px;
   line-height: 1.6;
   resize: vertical;
   outline: none;
-  padding: 0;
-
-  &:focus {
-    color: t.$text;
-  }
+  padding: 8px 9px;
 }
-
 .placeholder {
-  color: t.$muted-3;
-  font-size: 12px;
+  color: t.$text-muted;
+  font-size: 11px;
 }
 
 // ── Two-column grid (info + agents) ───────────────────
@@ -218,147 +198,158 @@
 .kv {
   display: flex;
   gap: 8px;
-  font-size: 12px;
+  font-size: 11px;
   margin-bottom: 6px;
   align-items: flex-start;
 
   &:last-child {
     margin-bottom: 0;
   }
-
   > span:first-child {
     width: 80px;
     flex-shrink: 0;
-    color: t.$muted;
+    color: t.$text-muted;
   }
 }
-
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
-
 .chip {
-  padding: 1px 7px;
-  border: 1px solid t.$border;
-  border-radius: 5px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 1px 6px;
+  border: 1px solid t.$divider-mid;
+  background: t.$panel-rail;
+  font-family: t.$font-mono;
   font-size: 11px;
-  color: t.$text-dim;
+  color: t.$text;
 }
-
 .wt {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: t.$font-mono;
   font-size: 11px;
-  color: t.$muted-2;
+  color: t.$text-muted;
   word-break: break-all;
 }
 
 // ── Agents section ────────────────────────────────────
 .agentRow {
+  height: 24px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 6px;
-  border-radius: 6px;
+  padding: 0 7px;
+  background: t.$dialog;
+  border: 1px solid t.$field-border;
   cursor: pointer;
-  font-size: 12px;
-  margin-bottom: 2px;
+  font-size: 11px;
+  margin-bottom: 4px;
 
   &:last-child {
     margin-bottom: 0;
   }
-
   &:hover {
-    background: t.$hover;
+    background: t.$panel-light;
   }
 }
-
 .agentRole {
   flex: 1;
-  color: t.$text-dim;
+  color: t.$text;
 }
-
 .agentStatus {
   font-size: 11px;
-  color: t.$muted;
+  color: t.$text-muted;
 }
-
 .dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
 
-  &.green { background: t.$green; }
-  &.grey  { background: t.$muted-3; }
-  &.red   { background: t.$red; }
-  &.blue  { background: t.$blue; }
+  &.green {
+    background: t.$success;
+  }
+  &.grey {
+    background: t.$text-meta;
+  }
+  &.red {
+    background: t.$danger;
+  }
+  &.blue {
+    background: t.$cyan;
+  }
 }
 
 // ── Log section ───────────────────────────────────────
 .logTabs {
   display: flex;
-  gap: 2px;
-  margin-bottom: 10px;
+  gap: 1px;
+  margin-bottom: 8px;
+  width: fit-content;
+  background: t.$divider-mid;
+  border: 1px solid t.$divider-mid;
 }
-
 .logTab {
-  padding: 3px 10px;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  background: transparent;
-  color: t.$muted;
+  padding: 1px 11px;
+  border: none;
+  background: t.$panel-rail;
+  color: t.$text-muted;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
+  font-family: t.$font-ui;
 
   &.active {
-    border-color: t.$border;
-    background: t.$hover;
+    background: t.$panel-light;
     color: t.$text;
   }
-
   &:disabled {
-    opacity: 0.35;
+    opacity: 0.4;
     cursor: default;
   }
 }
-
 .logDoc {
   margin: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+  display: block;
+  background: t.$field-read;
+  border: 1px solid t.$field-border;
+  padding: 8px 9px;
+  font-family: t.$font-mono;
+  font-size: 11px;
   line-height: 1.6;
-  color: t.$text-dim;
+  color: t.$text;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 // ── Save footer (queued only) ─────────────────────────
 .footer {
-  padding: 8px 12px 10px;
-  border-top: 1px solid t.$border;
+  padding: 8px 10px;
+  border-top: 1px solid t.$divider-mid;
   display: flex;
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  background: t.$dialog;
 }
-
 .saveBtn {
-  padding: 5px 16px;
-  border: 1px solid t.$border;
-  border-radius: 6px;
-  background: t.$accent;
-  color: white;
+  height: 22px;
+  padding: 0 14px;
+  border: 1px solid t.$amber-border;
+  background: t.$amber;
+  color: t.$text;
   cursor: pointer;
-  font-size: 13px;
-
-  &:hover:not(:disabled) { background: #3a78e6; }
-  &:disabled { opacity: 0.5; cursor: default; }
-}
-
-.saveStatus {
   font-size: 12px;
-  color: t.$muted;
+  font-weight: 500;
+  font-family: t.$font-ui;
+
+  &:hover:not(:disabled) {
+    background: #f6c659;
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+.saveStatus {
+  font-size: 11px;
+  color: #2a7a86;
 }

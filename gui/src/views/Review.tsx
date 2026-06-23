@@ -5,6 +5,7 @@ import { useRailStatus, useReview } from "../lib/review";
 import { useSessions } from "../lib/sessions";
 import ChangedFilesDiff from "../components/ChangedFilesDiff";
 import Modal from "../components/Modal";
+import ViewHeader from "../components/ViewHeader";
 import s from "./Review.module.scss";
 
 const MergeEditor = lazy(() => import("./MergeEditor"));
@@ -236,6 +237,18 @@ export default function Review({
       </aside>
 
       <div className={s.main}>
+        <ViewHeader dot="#836ddd" title="Review" subtitle="deep review · pending-human-qa">
+          {worktree && (
+            <>
+              <button className="esc" onClick={() => revealInFinder(worktree)}>
+                Reveal in Finder
+              </button>
+              <button className="esc" onClick={() => openFolderWith(worktree)}>
+                Open with…
+              </button>
+            </>
+          )}
+        </ViewHeader>
         <header className={s.head}>
           <div className={s.headInfo}>
             <div className={s.headTitle}>
@@ -248,16 +261,6 @@ export default function Review({
               <span className={`${s.badge} ${badgeCls(hb.cls)}`}>{hb.label}</span>
             </div>
           </div>
-          {worktree && (
-            <div className={s.headActions}>
-              <button className="esc" onClick={() => revealInFinder(worktree)}>
-                Reveal in Finder
-              </button>
-              <button className="esc" onClick={() => openFolderWith(worktree)}>
-                Open with…
-              </button>
-            </div>
-          )}
         </header>
 
         {error && <div className="error">{error}</div>}

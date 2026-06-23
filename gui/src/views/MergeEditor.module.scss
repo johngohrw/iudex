@@ -5,9 +5,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border: 1px solid t.$border;
-  border-radius: 8px;
-  background: t.$panel;
+  background: t.$module;
   overflow: hidden;
 }
 
@@ -16,15 +14,17 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 10px;
-  border-bottom: 1px solid t.$border;
+  padding: 5px 11px;
+  background: t.$module-head;
+  border-bottom: 1px solid t.$divider-dark;
   flex-shrink: 0;
 }
 
 .path {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px;
+  font-family: t.$font-mono;
+  font-size: 11px;
   font-weight: 600;
+  color: t.$text-bright;
 }
 
 .actions {
@@ -34,11 +34,11 @@
 }
 
 .warn {
-  padding: 6px 10px;
-  font-size: 12px;
-  color: t.$yellow;
-  background: #221f16;
-  border-bottom: 1px solid #3a341f;
+  padding: 5px 11px;
+  font-size: 11px;
+  color: #e6cf8f;
+  background: #2a2614;
+  border-bottom: 1px solid t.$divider-dark;
   flex-shrink: 0;
 }
 
@@ -56,17 +56,16 @@
   flex-direction: column;
 
   &:first-child {
-    border-bottom: 1px solid t.$border;
+    border-bottom: 1px solid t.$divider-dark;
   }
 }
 
 .label {
-  padding: 4px 10px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: t.$muted;
-  background: #1a1b1e;
+  padding: 4px 11px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: t.$text-meta;
+  background: t.$module-surface;
   flex-shrink: 0;
 }
 

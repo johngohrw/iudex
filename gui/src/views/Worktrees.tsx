@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import type { FileChange, FileDiff, Session, Workspace, Worktree } from "../types";
 import { useWorktrees } from "../lib/worktrees";
 import { stateColor } from "../components/StateBadge";
+import ViewHeader from "../components/ViewHeader";
+import Button from "../components/Button";
 import s from "./Worktrees.module.scss";
 
 // Monaco is heavy; load it only when this view first needs a diff.
@@ -112,13 +114,33 @@ export default function Worktrees({
     { add: 0, del: 0 }
   );
 
+  const headerActions = selected && (
+    <>
+      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#565656" }}>
+        {wtLabel(selected)} · {selected.head.slice(0, 7)}
+      </span>
+      <Button variant="secondary" size="sm" onClick={openShell}>
+        Launch Terminal Session
+      </Button>
+    </>
+  );
+
   if (error) return <div className="error">{error}</div>;
   if (worktrees.length === 0)
-    return <div className={s.empty}>No active worktrees. Activate a ticket to create one.</div>;
+    return (
+      <div className={s.wrap}>
+        <ViewHeader dot="#9ea0e0" title="Worktrees" subtitle="read-only inspection · two-dot vs main" />
+        <div className={s.empty}>No active worktrees. Activate a ticket to create one.</div>
+      </div>
+    );
 
   return (
-    <div className={s.root}>
-      <aside className={s.rail}>
+    <div className={s.wrap}>
+      <ViewHeader dot="#9ea0e0" title="Worktrees" subtitle="read-only inspection · two-dot vs main">
+        {headerActions}
+      </ViewHeader>
+      <div className={s.root}>
+        <aside className={s.rail}>
         <div className={s.railHead}>WORKTREES</div>
         {worktrees.map((w) => (
           <button
@@ -199,6 +221,7 @@ export default function Worktrees({
             {changes.length > 0 ? "Select a file to view its diff." : ""}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

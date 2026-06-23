@@ -5,8 +5,10 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-sizing: border-box;
-  padding: 16px;
+  font-family: t.$font-ui;
+  font-size: 12px;
+  color: t.$text;
+  background: t.$canvas;
 }
 
 // ── Splash / not-a-workspace screens ──────────────────────────────────────────
@@ -17,30 +19,42 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 14px;
+  background: t.$canvas;
 }
 
 .logo {
-  margin: 0 0 8px;
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
+  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: t.$text;
+
+  &::before {
+    content: "";
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: t.$amber;
+  }
 }
 
 .openBtn {
-  padding: 9px 22px;
-  border: 1px solid t.$accent;
-  border-radius: 7px;
-  background: t.$accent;
-  color: white;
-  font-size: 14px;
+  padding: 0 18px;
+  height: 26px;
+  border: 1px solid t.$amber-border;
+  background: t.$amber;
+  color: t.$text;
+  font-weight: 500;
+  font-size: 12px;
   cursor: pointer;
 
   &:hover:not(:disabled) {
-    background: #3a78e6;
+    background: #f6c659;
   }
-
   &:disabled {
     opacity: 0.5;
     cursor: default;
@@ -49,100 +63,320 @@
 
 .notWs {
   margin: 0;
-  color: t.$muted;
-  font-size: 15px;
+  color: t.$text-muted;
+  font-size: 13px;
 }
 
 .linkBtn {
-  padding: 4px 0;
+  padding: 2px 0;
   border: none;
   background: transparent;
   color: t.$link;
-  font-size: 13px;
+  font-size: 11px;
   cursor: pointer;
-  text-decoration: underline;
 
   &:hover {
     color: t.$text;
   }
 }
 
-// ── Header bar (workspace open) ───────────────────────────────────────────────
+// ── Top bar (44px) ────────────────────────────────────────────────────────────
 
-.bar {
+.topbar {
+  height: 44px;
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-  margin-bottom: 16px;
+  gap: 16px;
+  padding: 0 12px;
+  background: t.$chrome;
+  border-bottom: 1px solid t.$divider-dark;
+  color: #d8d8d8;
 }
 
-.wsName {
-  padding: 4px 10px;
-  border: 1px solid t.$border;
-  border-radius: 6px;
-  background: t.$panel;
-  color: t.$text;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px;
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.brandDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: t.$amber;
+}
+.brandName {
+  font-size: 14px;
+  font-weight: 600;
+  color: t.$text-bright;
+  letter-spacing: 0.01em;
+}
+
+.wsPicker {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  border: 1px solid t.$divider-chrome;
+  background: t.$sidebar;
   cursor: pointer;
-  flex-shrink: 0;
+  padding: 0;
 
   &:hover {
-    background: t.$hover;
-    border-color: t.$muted-3;
+    background: #474747;
   }
 }
-
-.meta {
-  color: t.$muted;
-  font-size: 13px;
-
-  b {
-    color: t.$text;
-    font-weight: 600;
-  }
-}
-
-.sync {
-  color: t.$muted-3;
-}
-
-// ── Nav + view ────────────────────────────────────────────────────────────────
-
-.nav {
+.wsTag {
+  font-size: 10px;
+  color: t.$text-meta;
+  padding: 0 7px;
+  border-right: 1px solid t.$divider-chrome;
+  align-self: stretch;
   display: flex;
-  gap: 2px;
-  flex-shrink: 0;
-  margin-bottom: 16px;
-  border-bottom: 1px solid t.$border;
+  align-items: center;
+}
+.wsPath {
+  font-family: t.$font-mono;
+  font-size: 12px;
+  color: t.$text-light;
+  padding: 0 8px;
+}
+.wsChev {
+  color: t.$text-meta;
+  padding: 0 7px;
+  border-left: 1px solid t.$divider-chrome;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.gear {
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  cursor: pointer;
+  background: t.$sidebar;
+  border: 1px solid t.$divider-chrome;
+  color: t.$text-light;
+  font-size: 11px;
+
+  &:hover {
+    background: #474747;
+  }
+  &.gearActive {
+    color: t.$text-bright;
+    border-color: t.$amber;
+  }
+}
+
+// ── Body / left rail / main ───────────────────────────────────────────────────
+
+.body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.rail {
+  width: 186px;
+  flex: none;
+  background: t.$sidebar;
+  border-right: 1px solid t.$divider-dark;
+  display: flex;
+  flex-direction: column;
+  color: t.$text-light;
 }
 
 .navItem {
-  padding: 8px 14px;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: t.$muted;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
   cursor: pointer;
-  font-size: 13px;
-
-  &:hover {
-    color: t.$text;
-  }
-
-  &.active {
-    color: t.$text;
-    border-bottom-color: t.$accent;
-  }
+  border: none;
+  border-left: 2px solid transparent;
+  background: transparent;
+  color: t.$text-light;
+  font-family: t.$font-ui;
+  font-size: 12px;
+  text-align: left;
+  width: 100%;
 }
-
-.view {
+.navDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.navLabel {
   flex: 1;
-  min-height: 0;
-  overflow-y: auto;
+}
+.navCount {
+  font-family: t.$font-mono;
+  font-size: 11px;
+  color: t.$text-meta;
 }
 
+.railSpacer {
+  flex: 1;
+}
+.railBottom {
+  border-top: 1px solid t.$divider-dark;
+}
+
+.pipeline {
+  padding: 10px 11px 9px;
+  border-bottom: 1px solid t.$divider-chrome;
+}
+.pipeTitle {
+  font-size: 10px;
+  color: t.$text-muted;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+.pipeRows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-family: t.$font-mono;
+  font-size: 11px;
+}
+.pipeRow {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+.pipeNum {
+  width: 14px;
+  text-align: right;
+  font-weight: 600;
+}
+.pipeLabel {
+  color: t.$text-meta;
+}
+
+.transport {
+  border-bottom: 1px solid t.$divider-chrome;
+}
+.transportBtns {
+  padding: 6px 11px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid #1a1a1a;
+}
+.tBtn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid t.$divider-chrome;
+  background: t.$divider-chrome;
+  cursor: pointer;
+  flex: none;
+  padding: 0;
+
+  &.tActive {
+    border-color: t.$success;
+  }
+}
+.playTri {
+  width: 0;
+  height: 0;
+  border-left: 8px solid t.$success;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
+.stopSq {
+  width: 8px;
+  height: 8px;
+  background: #b8b8b8;
+}
+
+.toggles {
+  padding: 5px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.toggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.toggleLabel {
+  font-size: 10px;
+  color: t.$text-meta;
+}
+.toggle {
+  width: 28px;
+  height: 14px;
+  border: 1px solid t.$divider-chrome;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+
+  .knob {
+    width: 10px;
+    height: 10px;
+  }
+}
+.toggleOn {
+  background: t.$amber;
+  justify-content: flex-end;
+  .knob {
+    background: t.$divider-chrome;
+  }
+}
+.toggleOff {
+  background: t.$sidebar;
+  justify-content: flex-start;
+  .knob {
+    background: #6a6a6a;
+  }
+}
+
+.sysinfo {
+  padding: 9px 11px;
+  font-family: t.$font-mono;
+  font-size: 11px;
+  color: t.$text-meta;
+  line-height: 1.7;
+}
+.sysBranch {
+  color: t.$text-light;
+}
+.sysBar {
+  margin-top: 5px;
+  display: flex;
+  gap: 2px;
+}
+.sysSeg {
+  flex: 1;
+  height: 4px;
+  background: t.$divider-chrome;
+
+  &.on {
+    background: t.$mint;
+  }
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  background: t.$canvas;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .viewHost {
   height: 100%;
 }

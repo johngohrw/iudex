@@ -1,191 +1,193 @@
 @use "../styles/tokens" as t;
 
+.wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
 .empty {
-  color: t.$muted-2;
-  padding: 20px 4px;
+  color: t.$text-muted;
+  padding: 20px;
+  font-size: 12px;
 }
 
 .root {
   display: flex;
-  gap: 10px;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
+// ── Worktree rail (236px) ─────────────────────────────────────────────────────
 .rail {
-  width: 220px;
-  flex-shrink: 0;
+  width: 236px;
+  flex: none;
   overflow-y: auto;
-  border: 1px solid t.$border;
-  border-radius: 8px;
-  background: t.$panel;
-  padding: 6px;
+  background: t.$panel-rail;
+  border-right: 1px solid t.$divider-mid;
+  display: flex;
+  flex-direction: column;
 }
-
 .railHead {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: t.$muted;
-  padding: 4px 6px 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #3a3a3a;
+  padding: 7px 10px 4px;
+  border-bottom: 1px solid t.$divider-mid;
 }
-
 .item {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
   width: 100%;
-  padding: 8px;
-  margin-bottom: 4px;
-  border: 1px solid transparent;
-  border-radius: 6px;
+  padding: 7px 10px;
+  border: none;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid t.$divider-mid;
   background: transparent;
   color: t.$text;
   cursor: pointer;
   text-align: left;
 
-  &:hover {
-    background: t.$hover;
-  }
-
   &.active {
-    background: t.$bg;
-    border-color: t.$accent;
+    background: t.$sel-bg;
+    border-left-color: t.$periwinkle;
   }
 }
-
 .branch {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: t.$font-mono;
   font-weight: 600;
-  font-size: 13px;
-}
+  font-size: 12px;
 
+  .active & {
+    color: t.$sel-text;
+  }
+}
 .badges {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
-
 .badge {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: 8px;
-  font-size: 11px;
-  background: t.$chip-bg;
-  color: t.$text-dim;
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-family: t.$font-mono;
+  font-size: 10px;
+  background: #828282;
+  color: t.$text-bright;
 }
-
 .badgeMuted {
-  color: t.$muted-3;
+  color: t.$text-muted;
   font-style: italic;
 }
 
+// ── Changed-files panel (240px) ───────────────────────────────────────────────
 .files {
-  width: 300px;
-  flex-shrink: 0;
+  width: 240px;
+  flex: none;
   display: flex;
   flex-direction: column;
-  border: 1px solid t.$border;
-  border-radius: 8px;
-  background: t.$panel;
+  background: t.$panel-rail;
+  border-right: 1px solid t.$divider-mid;
   overflow: hidden;
 }
-
 .filesHead {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: t.$muted;
-  padding: 4px 6px 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #3a3a3a;
+  padding: 7px 10px 4px;
+  border-bottom: 1px solid t.$divider-mid;
 }
-
 .filelist {
   list-style: none;
   margin: 0;
-  padding: 4px;
+  padding: 0;
   overflow-y: auto;
   flex: 1;
+  font-family: t.$font-mono;
+  font-size: 11px;
 }
-
 .file {
+  height: 21px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 8px;
-  border-radius: 6px;
+  padding: 0 10px;
   cursor: pointer;
+  color: t.$text;
 
   &:hover {
-    background: t.$hover;
+    background: t.$surface-c8;
   }
-
   &.active {
-    background: t.$bg;
+    background: t.$surface-c8;
   }
 }
-
 .st {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-weight: 700;
-  font-size: 12px;
-  width: 14px;
+  font-family: t.$font-mono;
+  font-weight: 600;
+  font-size: 11px;
+  width: 12px;
   text-align: center;
   flex-shrink: 0;
 }
-
 .stA {
-  color: t.$green;
+  color: t.$add-fg;
 }
 .stM {
-  color: t.$yellow;
+  color: #7a5a10;
 }
 .stD {
-  color: t.$red;
+  color: t.$del-fg;
 }
 .stR {
   color: t.$link;
 }
 .stU {
-  color: t.$muted-2;
+  color: #6a6410;
 }
-
 .path {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+  flex: 1;
+  min-width: 0;
+  font-family: t.$font-mono;
+  font-size: 11px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   direction: rtl;
   text-align: left;
 }
-
 .filesFoot {
-  padding: 8px 10px;
-  border-top: 1px solid t.$border;
-  font-size: 12px;
-  color: t.$muted;
+  padding: 6px 10px;
+  border-top: 1px solid t.$divider-mid;
+  font-size: 11px;
+  color: t.$text-muted;
+  font-family: t.$font-mono;
 
   .add {
-    color: t.$green;
+    color: t.$add-fg;
   }
   .del {
-    color: t.$red;
+    color: t.$del-fg;
   }
 }
 
+// ── Diff (dark) ───────────────────────────────────────────────────────────────
 .diff {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  border: 1px solid t.$border;
-  border-radius: 8px;
   overflow: hidden;
-  background: t.$bg;
+  background: t.$module;
 }
-
 .diffEmpty,
 .loading {
-  color: t.$muted-2;
-  padding: 20px 4px;
+  color: t.$text-meta;
+  padding: 20px;
+  font-size: 11px;
 }

@@ -1,166 +1,165 @@
 @use "../styles/tokens" as t;
 
-// The root fills the view height and acts as the containing block for the
-// floating panel so it overlays the list rather than pushing it aside.
 .root {
-  position: relative;
-  height: 100%;
-  overflow: hidden;
-}
-
-.listPane {
-  height: 100%;
-  overflow-y: auto;
-}
-
-.panel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 520px;
-  border-left: 1px solid t.$border;
-  border-radius: 0 0 0 0;
-  background: t.$panel;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.35);
-  z-index: 10;
+  height: 100%;
+  min-height: 0;
 }
 
-.selRow {
-  background: t.$bg;
-}
-
-.toolbar {
+// ── Custom header (dot + title + TabSwitcher + actions) ───────────────────────
+.header {
+  height: 30px;
+  flex: none;
   display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-
-  button {
-    padding: 6px 14px;
-    border: 1px solid t.$border;
-    border-radius: 6px;
-    background: t.$accent;
-    color: white;
-    cursor: pointer;
-    font-size: 13px;
-
-    &:hover {
-      background: #3a78e6;
-    }
-  }
-
-  button:global(.ghost) {
-    background: transparent;
-    color: t.$link;
-
-    &:hover {
-      background: t.$hover;
-    }
-  }
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  background: t.$panel-mid;
+  border-bottom: 1px solid t.$divider-mid;
+  white-space: nowrap;
 }
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-
-  th {
-    text-align: left;
-    padding: 8px 10px;
-    border-bottom: 1px solid t.$border;
-    color: t.$muted;
-    font-weight: 500;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  tr {
-    border-bottom: 1px solid #26272a;
-  }
-
-  td {
-    padding: 8px 10px;
-  }
+.headerDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: t.$cyan;
 }
-
-.id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+.headerTitle {
+  font-size: 14px;
   font-weight: 600;
 }
-
-.num {
-  font-variant-numeric: tabular-nums;
+.headerSpacer {
+  flex: 1;
 }
 
-.muted {
-  color: t.$muted-2;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-}
-
-.empty {
-  color: t.$muted-3;
-  text-align: center;
-  padding: 24px;
-}
-
-.actions {
+.bodyRow {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  gap: 6px;
-
-  button {
-    padding: 3px 10px;
-    border: 1px solid t.$border;
-    border-radius: 6px;
-    background: t.$accent;
-    color: white;
-    cursor: pointer;
-    font-size: 12px;
-
-    &:hover:not(:disabled) {
-      background: #3a78e6;
-    }
-
-    &:disabled {
-      opacity: 0.4;
-      cursor: default;
-    }
-  }
-
-  button:global(.ghost) {
-    background: transparent;
-    color: t.$link;
-
-    &:hover:not(:disabled) {
-      background: t.$hover;
-    }
-  }
+}
+.listPane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
 }
 
+// ── Dense grid table ──────────────────────────────────────────────────────────
+$cols: 28px 72px 1fr 140px 90px 54px 120px 128px;
+
+.thead {
+  display: grid;
+  grid-template-columns: $cols;
+  background: t.$chrome;
+  color: t.$text-light;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+
+  > div {
+    padding: 7px 8px;
+  }
+}
+.thCenter {
+  text-align: center;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: $cols;
+  align-items: center;
+  height: 30px;
+  font-family: t.$font-mono;
+  cursor: pointer;
+
+  > div {
+    padding: 0 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+.rowDot {
+  display: flex;
+  justify-content: center;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.cellId {
+  font-family: t.$font-mono;
+  color: t.$text;
+}
+.cellTitle {
+  font-family: t.$font-ui;
+  color: t.$text;
+}
+.cellDeps {
+  font-size: 11px;
+  color: t.$text-muted;
+}
+.cellQa {
+  text-align: center;
+  color: t.$text-muted;
+}
+.cellQaHot {
+  color: t.$danger;
+}
+.cellWt {
+  font-size: 11px;
+  color: t.$text-muted;
+}
+.cellAct {
+  font-family: t.$font-ui;
+}
+.actBtn {
+  font-size: 11px;
+  padding: 2px 7px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.empty {
+  padding: 24px;
+  color: t.$text-muted;
+  text-align: center;
+}
+
+// ── Detail panel (336px, inline) ──────────────────────────────────────────────
+.panel {
+  width: 336px;
+  flex: none;
+  background: t.$surface-c8;
+  border-left: 1px solid t.$divider-mid;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+// ── Compose/idea modal bits ───────────────────────────────────────────────────
 .depGrid {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
-
 .depChip {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 8px;
-  border: 1px solid t.$border;
-  border-radius: 6px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+  padding: 2px 7px;
+  border: 1px solid t.$divider-mid;
+  background: t.$panel-rail;
+  font-family: t.$font-mono;
+  font-size: 11px;
   cursor: pointer;
 }
-
 .hint {
-  color: t.$muted-2;
-  font-size: 12px;
+  color: t.$text-muted;
+  font-size: 11px;
   line-height: 1.5;
-  margin: -4px 0 14px;
+  margin: -4px 0 12px;
 }

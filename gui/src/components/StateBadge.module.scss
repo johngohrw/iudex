@@ -1,40 +1,52 @@
-@use "../styles/tokens" as t;
-
+// The ticket-lifecycle state pill. Square chip (2px radius), per-state solid
+// fills from the canonical render (iudex.dc.html STATE map).
 .badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 12px;
-  background: t.$chip-bg;
-  color: t.$text-dim;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 5px;
+  border-radius: 2px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  background: #828282;
+  color: #e8e9eb;
 }
 
 .queued {
-  background: t.$accent-bg;
-  color: t.$link;
+  background: #828282;
+  color: #e8e9eb;
 }
 
 .active {
-  background: t.$green-bg;
-  color: t.$green;
+  background: #f4bc41;
+  color: #2a2a2a;
 }
 
+// pending-qa
 .pending {
-  background: t.$yellow-bg;
-  color: t.$yellow;
+  background: #5bc7d8;
+  color: #10333a;
+}
+
+// pending-human-qa
+.review {
+  background: #836ddd;
+  color: #ffffff;
 }
 
 .done {
-  background: t.$teal-bg;
-  color: t.$teal;
+  background: #828282;
+  color: #5ccf5c;
 }
 
 .failed {
-  background: t.$red-bg;
-  color: t.$red;
+  background: #e0584c;
+  color: #ffffff;
 }
 
 .removed {
-  background: t.$chip-bg;
-  color: #7a7a80;
+  background: #828282;
+  color: #565656;
 }

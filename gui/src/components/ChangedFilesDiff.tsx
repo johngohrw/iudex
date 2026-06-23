@@ -41,6 +41,8 @@ export default function ChangedFilesDiff({
           >
             <span className={`${s.st} ${s[`st${c.status}`] ?? ""}`}>{c.status}</span>
             <span className={s.path}>{c.path}</span>
+            {c.additions ? <span className={s.add}>+{c.additions}</span> : null}
+            {c.deletions ? <span className={s.del}>−{c.deletions}</span> : null}
           </li>
         ))}
       </ul>

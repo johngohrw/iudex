@@ -7,7 +7,7 @@ const CLASS: Record<string, string> = {
   queued: s.queued,
   active: s.active,
   "pending-qa": s.pending,
-  "pending-human-qa": s.pending,
+  "pending-human-qa": s.review,
   done: s.done,
   failed: s.failed,
   removed: s.removed,

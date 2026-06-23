@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Config } from "../types";
+import ViewHeader from "../components/ViewHeader";
 import s from "./Settings.module.scss";
 
 type Saved = { ok: boolean; msg: string } | null;
@@ -49,40 +50,49 @@ export default function Settings({
     };
   }, [root]);
 
-  if (loadErr) return <div className="error">{loadErr}</div>;
-  if (!config) return <div className={s.loading}>loading config…</div>;
-
   return (
     <div className={s.settings}>
-      <div className={s.subtabs}>
-        {SUBTABS.map((t) => (
-          <button
-            key={t.id}
-            className={`${s.subtab} ${tab === t.id ? s.active : ""}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <ViewHeader
+        dot="#8a8f99"
+        title="Settings"
+        subtitle={tab === "general" ? ".iudex/config.yml" : ".iudex/prompts/"}
+      />
+      <div className={s.row}>
+        <div className={s.sidebar}>
+          <div className={s.sideHead}>SETTINGS</div>
+          {SUBTABS.map((t) => (
+            <button
+              key={t.id}
+              className={`${s.sideItem} ${tab === t.id ? s.active : ""}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
 
-      <div className={s.body}>
-        {tab === "general" ? (
-          <GeneralTab
-            config={config}
-            setConfig={setConfig}
-            root={root}
-            onConfigSaved={onConfigSaved}
-          />
-        ) : (
-          <PromptsTab
-            root={root}
-            impl={impl}
-            setImpl={setImpl}
-            review={review}
-            setReview={setReview}
-          />
-        )}
+        <div className={s.body}>
+          {loadErr ? (
+            <div className="error">{loadErr}</div>
+          ) : !config ? (
+            <div className={s.loading}>loading config…</div>
+          ) : tab === "general" ? (
+            <GeneralTab
+              config={config}
+              setConfig={setConfig}
+              root={root}
+              onConfigSaved={onConfigSaved}
+            />
+          ) : (
+            <PromptsTab
+              root={root}
+              impl={impl}
+              setImpl={setImpl}
+              review={review}
+              setReview={setReview}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -136,10 +146,11 @@ function GeneralTab({
   return (
     <section className={s.card}>
       <div className={s.head}>
-        <span className={s.title}>General</span>
+        <span className={s.title}>General · config.yml</span>
         <code className={s.path}>.iudex/config.yml</code>
       </div>
 
+      <div className={s.fields}>
       <label className="field">
         <span>Main branch</span>
         <input value={config.mainBranch} onChange={(e) => set("mainBranch", e.target.value)} />
@@ -199,6 +210,7 @@ function GeneralTab({
           ⚠ applies to new tickets only — existing worktrees keep their branch.
         </small>
       </label>
+      </div>
 
       <div className={s.actions}>
         <SavedNote saved={saved} />
@@ -247,6 +259,7 @@ function PromptsTab({
         <code className={s.path}>.iudex/prompts/</code>
       </div>
 
+      <div className={s.fields}>
       <label className="field">
         <span>
           Impl prompt <code className={s.path}>impl.md</code>
@@ -278,6 +291,7 @@ function PromptsTab({
           spellCheck={false}
         />
       </label>
+      </div>
 
       <div className={s.actions}>
         <SavedNote saved={saved} />

@@ -1,33 +1,91 @@
-// Design tokens — the app's dark palette, one source of truth. `@use` this from
-// any component module: `@use "../styles/tokens" as t;` then `color: t.$text;`.
+// Design tokens — the Ableton-Live language (gray, flat, dense). One source of
+// truth; `@use` from any module: `@use "../styles/tokens" as t;` then `t.$canvas`.
+// Rule of the system: COLOR IS STATE, NOT DECORATION.
 
-// Surfaces
-$bg: #16171a; // deepest — editor/diff background, active row
-$panel: #202125; // card / panel surface
-$hover: #2a2b30; // hover surface
-$border: #3a3b3f;
+// ── Fonts ──────────────────────────────────────────────────────────────────
+$font-ui: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+$font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-// Accent / text
-$accent: #2d6cdf; // selection, active tab
-$text: #e6e6e6;
-$text-dim: #c8c8ce;
-$muted: #9a9aa0;
-$muted-2: #8a8a90;
-$muted-3: #6a6a70;
-$link: #9db4e0;
+// ── Surfaces (gray DAW chrome, light → dark) ─────────────────────────────────
+$canvas: #929292; // main area background / sidebar canvas
+$chrome: #565656; // top bar
+$sidebar: #3f3f3f; // left nav rail
+$module: #1d1d1d; // terminal / diff background (near-black)
+$module-surface: #2f333c; // dark panel headers (diff filename strip)
+$module-head: #20242e; // diff hunk header strip
+$panel-mid: #afafaf; // view headers, agent detail header
+$panel-light: #dadada; // active tab, light panel surface
+$panel-rail: #9c9c9c; // rail / sub-header background
+$panel-detail: #828282; // detail-area background
+$dialog: #bdbdbd; // action bars
+$surface-c8: #c8c8c8; // field fills / selected file row
+$field-read: #b8b8b8; // read-only textarea fill
+$field-edit: #e8e8e8; // editable textarea fill
 
-// Signal colors (badges, diff status glyphs)
-$green: #8fd6a4;
-$yellow: #e0cf8f;
-$red: #e09b8f;
-$blue: #8fc7e0;
-$teal: #8fd6cb;
+// ── Dividers ─────────────────────────────────────────────────────────────────
+$divider-dark: #14171d; // borders inside dark panels
+$divider-mid: #6f6f6f; // borders inside gray panels
+$divider-chrome: #2a2a2a; // borders inside dark chrome
+$field-border: #9a9a9a; // input borders
 
-// Badge backgrounds
-$green-bg: #243a2a;
+// ── Signal hues (state, never decoration) ────────────────────────────────────
+$amber: #f4bc41; // active / on / primary
+$amber-border: #c79320; // primary button border
+$cyan: #5bc7d8; // editing / pending-qa
+$mint: #72f6aa; // level / progress / terminal accent
+$indigo: #1f2e90; // selected nav (default)
+$violet: #836ddd; // review / pending-human-qa
+$violet-border: #5b46b0;
+$danger: #e0584c; // error / failed / record
+$danger-border: #b03d33;
+$success: #5ccf5c; // running / merged / done
+$periwinkle: #9ea0e0; // worktrees
+
+// Diff add/remove (within the dark module)
+$diff-add-bg: #16301c;
+$diff-add-fg: #8fe0a0;
+$diff-del-bg: #3a1f1f;
+$diff-del-fg: #e08a82;
+$add-fg: #15692f; // "+N" stat in gray panels
+$del-fg: #a82d22; // "−N" stat in gray panels
+
+// ── Text ─────────────────────────────────────────────────────────────────────
+$text: #2a2a2a; // primary content
+$text-muted: #565656; // secondary labels
+$text-meta: #8a8f99; // sidebar metadata / overlines / dim
+$text-light: #cfcfcf; // text on dark chrome
+$text-bright: #e8e9eb; // active nav / headings on dark
+
+// ── Selection (active nav row fill — DESIGN.md §5; default Indigo) ────────────
+$sel-bg: #1f2e90;
+$sel-border: #14206b;
+$sel-text: #ffffff;
+$sel-text-dim: rgba(255, 255, 255, 0.74);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Back-compat aliases: the pre-reskin dark-theme token names, remapped onto the
+// new palette so not-yet-converted view modules keep compiling during rollout.
+// Remove an alias once every consumer has been converted.
+// ─────────────────────────────────────────────────────────────────────────────
+$bg: $module;
+$panel: $panel-mid;
+$hover: $panel-rail;
+$border: $divider-mid;
+$accent: $indigo;
+$text-dim: $text-muted;
+$muted: $text-muted;
+$muted-2: $text-muted;
+$muted-3: $text-meta;
+$link: #1c6f78;
+$green: $success;
+$yellow: $amber;
+$red: $danger;
+$blue: $cyan;
+$teal: $cyan;
+$green-bg: #243029;
 $yellow-bg: #3a341f;
 $blue-bg: #1f2f3a;
 $red-bg: #3a2424;
 $teal-bg: #233a36;
-$chip-bg: #2c2d31;
-$accent-bg: #2a2f3a;
+$chip-bg: #404040;
+$accent-bg: $module-surface;

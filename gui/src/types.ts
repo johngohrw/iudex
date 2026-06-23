@@ -137,12 +137,17 @@ export type View =
   | "review"
   | "settings";
 
-export const VIEWS: { id: View; label: string }[] = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "terminal", label: "Terminal" },
-  { id: "tickets", label: "Tickets" },
-  { id: "agents", label: "Agents" },
-  { id: "worktrees", label: "Worktrees" },
-  { id: "review", label: "Review" },
-  { id: "settings", label: "Settings" },
+// Per-view status-dot color (DESIGN.md §4). Settings is reached via the top-bar
+// gear, not the left rail, so it carries the muted dot but isn't in RAIL_VIEWS.
+export const VIEWS: { id: View; label: string; dot: string }[] = [
+  { id: "dashboard", label: "Dashboard", dot: "#f4bc41" },
+  { id: "terminal", label: "Terminal", dot: "#72f6aa" },
+  { id: "tickets", label: "Tickets", dot: "#5bc7d8" },
+  { id: "agents", label: "Agents", dot: "#5ccf5c" },
+  { id: "worktrees", label: "Worktrees", dot: "#9ea0e0" },
+  { id: "review", label: "Review", dot: "#836ddd" },
+  { id: "settings", label: "Settings", dot: "#8a8f99" },
 ];
+
+// The left-nav rail order (Settings lives in the top-bar gear instead).
+export const RAIL_VIEWS = VIEWS.filter((v) => v.id !== "settings");

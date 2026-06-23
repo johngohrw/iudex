@@ -2,19 +2,34 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Session, Ticket, Workspace } from "../types";
 import { IDEA_SKILLS } from "../lib/skills";
+import { useBriefTitles } from "../lib/agents";
 import StateBadge from "../components/StateBadge";
 import Modal from "../components/Modal";
+import Button from "../components/Button";
+import TabSwitcher from "../components/TabSwitcher";
 import TicketDetail from "../components/TicketDetail";
+import TicketGraph from "./TicketGraph";
 import s from "./Tickets.module.scss";
 
-// What to show in the trailing "detail" column for a ticket.
-function detail(t: Ticket): string {
-  if (t.state === "queued") {
-    return t.ready ? "ready" : `blocked by ${t.blockedBy.join(", ")}`;
-  }
-  if (t.hasWorktree && t.worktree) return t.worktree;
-  return "";
-}
+// State → row dot color (DESIGN.md: color is state).
+const DOT: Record<string, string> = {
+  queued: "#9ea0e0",
+  active: "#f4bc41",
+  "pending-qa": "#5bc7d8",
+  "pending-human-qa": "#836ddd",
+  done: "#5ccf5c",
+  failed: "#e0584c",
+  removed: "#565656",
+};
+
+// The row action button style per variant (ported from iudex.dc.html ACT map).
+const ACT: Record<string, { bg: string; color: string; border: string }> = {
+  primary: { bg: "#f4bc41", color: "#2a2a2a", border: "1px solid #c79320" },
+  normal: { bg: "#9c9c9c", color: "#2a2a2a", border: "1px solid #8a8a8a" },
+  ghost: { bg: "#9c9c9c", color: "#2a2a2a", border: "1px solid #6f6f6f" },
+  danger: { bg: "#e0584c", color: "#ffffff", border: "1px solid #b03d33" },
+  disabled: { bg: "transparent", color: "#565656", border: "1px solid transparent" },
+};
 
 // The reactive tickets table, the write-path action column, and the front-of-
 // funnel launchers (compose a ticket / shape an idea via a skill agent). Every
@@ -36,6 +51,17 @@ export default function Tickets({
   const [composing, setComposing] = useState(false);
   const [ideating, setIdeating] = useState(false);
   const [selId, setSelId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"table" | "graph">("table");
+
+  // Human titles for tickets that have a worktree (briefs live in the worktree).
+  const titles = useBriefTitles(
+    ws.tickets.flatMap((t) => (t.worktree ? [t.worktree] : [])),
+    ws,
+  );
+  const titleOf = (t: Ticket) => (t.worktree && titles[t.worktree]) || "";
+
+  // Tickets shown in the table/graph (removed are hidden).
+  const visible = ws.tickets.filter((t) => t.state !== "removed");
 
   const sel = selId ? (ws.tickets.find((t) => t.id === selId) ?? null) : null;
   // Drop selection if the ticket disappears (e.g. removed).
@@ -61,11 +87,6 @@ export default function Tickets({
     });
   const finish = (id: string) =>
     act(id, () => invoke("run_iudex", { root, args: ["finish", id] }));
-  const spawnImpl = (id: string) =>
-    act(id, async () => {
-      const s = await invoke<Session>("spawn_agent", { root, ticket: id, role: "impl" });
-      onJumpToAgent(s.name);
-    });
   const spawnQa = (id: string) =>
     act(id, async () => {
       const s = await invoke<Session>("spawn_agent", { root, ticket: id, role: "qa" });
@@ -74,115 +95,143 @@ export default function Tickets({
   const retry = (id: string) =>
     act(id, () => invoke("run_iudex", { root, args: ["retry", id] }));
 
-  const actionsFor = (t: Ticket) => {
-    const disabled = busy !== null;
+  // The single row action per state (secondary actions live in the detail menu).
+  const rowAction = (
+    t: Ticket,
+  ): { label: string; variant: keyof typeof ACT; onClick?: () => void } => {
     switch (t.state) {
       case "queued":
-        return t.ready ? (
-          <button disabled={disabled} onClick={() => activate(t.id)}>
-            Activate
-          </button>
-        ) : null;
+        return t.ready
+          ? { label: "Activate", variant: "primary", onClick: () => activate(t.id) }
+          : { label: "blocked", variant: "disabled" };
       case "active":
-        return (
-          <>
-            <button disabled={disabled} onClick={() => finish(t.id)}>
-              Finish
-            </button>
-            <button
-              className="ghost"
-              disabled={disabled}
-              onClick={() => spawnImpl(t.id)}
-              title="launch another impl agent"
-            >
-              Agent
-            </button>
-          </>
-        );
+        return { label: "Finish", variant: "normal", onClick: () => finish(t.id) };
       case "pending-qa":
-        return (
-          <button
-            disabled={disabled}
-            onClick={() => spawnQa(t.id)}
-            title="launch a QA agent"
-          >
-            QA agent
-          </button>
-        );
+        return { label: "Spawn QA", variant: "ghost", onClick: () => spawnQa(t.id) };
       case "failed":
-        return (
-          <button disabled={disabled} onClick={() => retry(t.id)}>
-            Retry
-          </button>
-        );
+        return { label: "Retry", variant: "danger", onClick: () => retry(t.id) };
+      case "done":
+        return { label: "✓ merged", variant: "disabled" };
       default:
-        return null;
+        return { label: "", variant: "disabled" };
     }
   };
 
+  const depText = (t: Ticket) =>
+    t.state === "queued" && !t.ready ? t.blockedBy.join(", ") || "—" : t.deps.join(", ") || "—";
+
   return (
     <div className={s.root}>
-      <div className={s.listPane}>
-        <div className={s.toolbar}>
-          <button onClick={() => setComposing(true)}>New ticket</button>
-          <button className="ghost" onClick={() => setIdeating(true)}>
-            New idea
-          </button>
+      <header className={s.header}>
+        <span className={s.headerDot} />
+        <span className={s.headerTitle}>Tickets</span>
+        <TabSwitcher
+          tabs={["Table", "Graph"]}
+          value={mode === "table" ? "Table" : "Graph"}
+          onChange={(v) => setMode(v === "Graph" ? "graph" : "table")}
+          style={{ marginLeft: 4 }}
+        />
+        <span className={s.headerSpacer} />
+        <Button variant="primary" size="sm" onClick={() => setComposing(true)}>
+          + Compose Ticket
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => setIdeating(true)}>
+          Shape Idea
+        </Button>
+      </header>
+
+      {error && <div className="error">{error}</div>}
+
+      <div className={s.bodyRow}>
+        <div className={s.listPane}>
+          {mode === "graph" ? (
+            <TicketGraph tickets={visible} titles={titles} selId={selId} onSelect={setSelId} />
+          ) : (
+            <>
+              <div className={s.thead}>
+                <div />
+                <div>ID</div>
+                <div>TITLE</div>
+                <div>STATE</div>
+                <div>DEPS</div>
+                <div className={s.thCenter}>QA</div>
+                <div>WORKTREE</div>
+                <div>ACTION</div>
+              </div>
+              {visible.length === 0 && <div className={s.empty}>no tickets yet</div>}
+              {visible.map((t, i) => {
+                const a = rowAction(t);
+                const on = t.id === selId;
+                return (
+                  <div
+                    key={t.id}
+                    className={s.row}
+                    onClick={() => setSelId(on ? null : t.id)}
+                    style={{
+                      background: on ? "#1f2e90" : i % 2 ? "#969696" : "#9c9c9c",
+                      color: on ? "#fff" : undefined,
+                    }}
+                  >
+                    <div className={s.rowDot}>
+                      <span className={s.dot} style={{ background: DOT[t.state] }} />
+                    </div>
+                    <div className={s.cellId} style={on ? { color: "#fff" } : undefined}>
+                      {t.id}
+                    </div>
+                    <div className={s.cellTitle} style={on ? { color: "#fff" } : undefined}>
+                      {titleOf(t)}
+                    </div>
+                    <div>
+                      <StateBadge state={t.state} />
+                    </div>
+                    <div className={s.cellDeps} style={on ? { color: "#cdd2ff" } : undefined}>
+                      {depText(t)}
+                    </div>
+                    <div
+                      className={`${s.cellQa} ${t.qaRejects > 0 ? s.cellQaHot : ""}`}
+                      style={on ? { color: "#fff" } : undefined}
+                    >
+                      {t.qaRejects || ""}
+                    </div>
+                    <div className={s.cellWt} style={on ? { color: "#cdd2ff" } : undefined}>
+                      {t.worktree || "—"}
+                    </div>
+                    <div className={s.cellAct} onClick={(e) => e.stopPropagation()}>
+                      {busy === t.id ? (
+                        <span className="muted">…</span>
+                      ) : a.label ? (
+                        <span
+                          className={s.actBtn}
+                          style={{
+                            ...ACT[a.variant],
+                            cursor: a.onClick && busy === null ? "pointer" : "default",
+                            opacity: a.onClick && busy !== null ? 0.5 : 1,
+                          }}
+                          onClick={() => busy === null && a.onClick?.()}
+                        >
+                          {a.label}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
 
-        {error && <div className="error">{error}</div>}
-
-        <table className={s.table}>
-          <thead>
-            <tr>
-              <th>id</th>
-              <th>state</th>
-              <th>qa rejects</th>
-              <th>detail</th>
-              <th>actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ws.tickets.length === 0 && (
-              <tr>
-                <td colSpan={5} className={s.empty}>
-                  no tickets yet
-                </td>
-              </tr>
-            )}
-            {ws.tickets.map((t) => (
-              <tr
-                key={t.id}
-                className={t.id === selId ? s.selRow : ""}
-                onClick={() => setSelId(t.id === selId ? null : t.id)}
-                style={{ cursor: "pointer" }}
-              >
-                <td className={s.id}>{t.id}</td>
-                <td>
-                  <StateBadge state={t.state} />
-                </td>
-                <td className={s.num}>{t.qaRejects || ""}</td>
-                <td className={s.muted}>{detail(t)}</td>
-                <td className={s.actions} onClick={(e) => e.stopPropagation()}>
-                  {busy === t.id ? <span className="muted">…</span> : actionsFor(t)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {sel && (
+          <div className={s.panel}>
+            <TicketDetail
+              root={root}
+              ticket={sel}
+              ws={ws}
+              onClose={() => setSelId(null)}
+              onJumpToAgent={onJumpToAgent}
+            />
+          </div>
+        )}
       </div>
-
-      {sel && (
-        <div className={s.panel}>
-          <TicketDetail
-            root={root}
-            ticket={sel}
-            ws={ws}
-            onClose={() => setSelId(null)}
-            onJumpToAgent={onJumpToAgent}
-          />
-        </div>
-      )}
 
       {composing && (
         <ComposeTicketModal

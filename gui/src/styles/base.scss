@@ -1,14 +1,15 @@
-// Global utility classes — the few cross-cutting bits that are intentionally
-// NOT scoped: text/button/empty-state primitives used by string from many
-// components. Everything view-specific lives in a co-located *.module.scss.
-// Imported once (App.tsx) so these names are available app-wide.
+// Global base + the few intentionally-unscoped utilities. The Ableton language:
+// flat, square, dense, gray. Hierarchy comes from weight + color, not size — the
+// app lives near 11–13px. Imported once (App.tsx) so these are app-wide.
 @use "tokens" as t;
 
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  font-size: 14px;
+  font-family: t.$font-ui;
+  font-size: 12px;
   color: t.$text;
-  background: #1a1b1e;
+  background: t.$canvas;
+  --font-ui: #{t.$font-ui};
+  --font-mono: #{t.$font-mono};
 }
 
 * {
@@ -19,57 +20,80 @@ body {
   margin: 0;
 }
 
-.muted {
-  color: t.$muted-2;
+// Scrollbars: #6f6f6f thumb on #828282 track (DESIGN.md §2.4).
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: t.$divider-mid;
+}
+::-webkit-scrollbar-track {
+  background: t.$panel-detail;
 }
 
+.mono {
+  font-family: t.$font-mono;
+}
+
+.muted {
+  color: t.$text-muted;
+}
+
+// Error banner — square, flat, on the danger palette.
 .error {
-  padding: 10px 12px;
-  margin-bottom: 12px;
+  padding: 6px 10px;
   flex-shrink: 0;
-  border: 1px solid #5a2b2b;
-  border-radius: 6px;
-  background: #2a1d1d;
-  color: #f0b0b0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  border: 1px solid t.$danger-border;
+  background: #f0cfca;
+  color: #6a201a;
+  font-family: t.$font-mono;
+  font-size: 11px;
   white-space: pre-wrap;
 }
 
-// Secondary "ghost" button.
-.ghost {
-  padding: 4px 12px;
-  border: 1px solid t.$border;
-  border-radius: 6px;
-  background: transparent;
-  color: t.$link;
-  cursor: pointer;
-  font-size: 12px;
-
-  &:hover {
-    background: t.$hover;
-  }
-}
-
-// Escape-hatch / small secondary action button (formerly .wt-esc).
+// Interim flat secondary buttons (`.ghost`/`.esc`/`.go`) — square, on-palette.
+// Each view replaces these with the shared <Button> as it's converted.
+.ghost,
 .esc {
-  padding: 3px 10px;
-  border: 1px solid t.$border;
-  border-radius: 6px;
-  background: transparent;
-  color: t.$link;
+  padding: 0 8px;
+  height: 20px;
+  border: 1px solid t.$divider-mid;
+  background: t.$panel-rail;
+  color: t.$text;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
+  font-family: t.$font-ui;
 
-  &:hover {
-    background: t.$hover;
+  &:hover:not(:disabled) {
+    background: t.$panel-light;
   }
 
   &.danger {
-    color: t.$red;
+    background: t.$danger;
+    border-color: t.$danger-border;
+    color: #fff;
+  }
 
-    &:hover {
-      background: #2a1d1d;
-    }
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+}
+
+.go {
+  padding: 0 12px;
+  height: 22px;
+  border: 1px solid t.$amber-border;
+  background: t.$amber;
+  color: t.$text;
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: t.$font-ui;
+
+  &:hover:not(:disabled) {
+    background: #f6c659;
   }
 
   &:disabled {
@@ -80,18 +104,20 @@ body {
 
 // Empty-state / not-available panel.
 .stub {
-  border: 1px dashed t.$border;
-  border-radius: 8px;
-  padding: 28px;
-  color: t.$muted;
+  border: 1px solid t.$divider-mid;
+  background: t.$panel-mid;
+  padding: 20px;
+  color: t.$text-muted;
 
   h2 {
     margin: 0 0 8px;
     color: t.$text;
+    font-size: 14px;
+    font-weight: 600;
   }
 
   p {
-    margin: 0 0 14px;
+    margin: 0 0 12px;
     max-width: 520px;
     line-height: 1.5;
   }
@@ -99,63 +125,44 @@ body {
 
 .stub-tag {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 12px;
-  background: #2a2f3a;
-  color: t.$link;
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-size: 10px;
+  font-family: t.$font-mono;
+  background: t.$module-surface;
+  color: t.$text-bright;
 }
 
-// Affirmative "do it" button — the small green action (Resolve with agent /
-// Commit / Mark resolved), shared by Review's conflicts tab and the merge editor.
-.go {
-  padding: 5px 14px;
-  border: 1px solid #2f8f4e;
-  border-radius: 6px;
-  background: #2f8f4e;
-  color: white;
-  cursor: pointer;
-  font-size: 13px;
-
-  &:hover:not(:disabled) {
-    background: #36a259;
-  }
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-}
-
-// Form field — a label-over-control wrapper used by every form (Settings,
-// compose-ticket, reject-reason).
+// Form field — label-over-control, flat/square. Used by Settings, compose, etc.
 .field {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 
   > span {
-    font-size: 12px;
+    font-size: 10px;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: t.$muted;
+    letter-spacing: 0.06em;
+    color: t.$text-muted;
   }
 
   input,
   textarea,
   select {
-    padding: 7px 10px;
-    border: 1px solid t.$border;
-    border-radius: 6px;
-    background: #232427;
+    padding: 6px 8px;
+    border: 1px solid t.$field-border;
+    background: t.$field-edit;
     color: t.$text;
-    font-size: 13px;
-    font-family: inherit;
+    font-size: 12px;
+    font-family: t.$font-ui;
+    outline: none;
   }
 
   textarea {
     resize: vertical;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: t.$font-mono;
+    font-size: 11px;
+    line-height: 1.6;
   }
 }

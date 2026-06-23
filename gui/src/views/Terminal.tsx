@@ -3,7 +3,18 @@ import { invoke } from "@tauri-apps/api/core";
 import { useSessions, sessionTitle, sessionLabel } from "../lib/sessions";
 import type { Session } from "../types";
 import XtermPane from "./XtermPane";
+import ViewHeader from "../components/ViewHeader";
+import Button from "../components/Button";
 import s from "./Terminal.module.scss";
+
+// Tab status-dot color by session kind/role (DESIGN.md: color is state).
+function sessionDot(sessions: Session[], name: string): string {
+  const x = sessions.find((s) => s.name === name);
+  if (!x) return "#9ea0e0";
+  if (x.kind === "idea") return "#e4e47a";
+  if (x.kind === "shell") return "#9ea0e0";
+  return x.role === "qa" ? "#836ddd" : "#5ccf5c";
+}
 
 // The interactive, full-size surface over the tmux pool. Each tab is a live
 // attach to one session. Panes stay mounted once opened (hidden when inactive)
@@ -85,6 +96,12 @@ export default function Terminal({
 
   return (
     <div className={s.term}>
+      <ViewHeader dot="#72f6aa" title="Terminal">
+        <Button variant="secondary" size="sm" onClick={newShell}>
+          + New Shell
+        </Button>
+      </ViewHeader>
+
       <div className={s.tabs}>
         {open.map((name) => (
           <div
@@ -92,6 +109,7 @@ export default function Terminal({
             className={`${s.tab} ${activeTab === name ? s.active : ""}`}
             onClick={() => setActiveTab(name)}
           >
+            <span className={s.tabDot} style={{ background: sessionDot(sessions, name) }} />
             <span>{tabLabel(sessions, name)}</span>
             <button
               className={s.x}
@@ -105,9 +123,6 @@ export default function Terminal({
             </button>
           </div>
         ))}
-        <button className={s.new} onClick={newShell}>
-          + shell
-        </button>
       </div>
 
       {error && <div className="error">{error}</div>}
