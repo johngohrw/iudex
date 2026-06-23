@@ -356,7 +356,7 @@ pub fn spawn_idea(root: String, skill: String, seed: String) -> Result<Session, 
 /// is confident about and **flagging, never guessing**, anything that needs human
 /// judgment — then reports structurally. It commits the merge only if it resolved
 /// everything; any flagged file leaves the merge in progress for the human.
-const RESOLVE_PROMPT: &str = "You are resolving an in-progress git merge in THIS \
+pub(crate) const RESOLVE_PROMPT: &str = "You are resolving an in-progress git merge in THIS \
 worktree: `main` was merged into this ticket's branch and left conflicts. The two \
 branches are siblings cut from a shared base, so conflicts range from trivial \
 (duplicated or adjacent lines, import ordering) to genuinely semantic (both sides \
@@ -377,6 +377,19 @@ merge with `git commit --no-edit`.\n\
 - If you flagged ANY file, do NOT commit — leave the merge in progress.\n\n\
 Touch only the conflicted files; change nothing else.";
 
+/// The resolver prompt: the workspace's editable `.iudex/prompts/resolve.md` if
+/// present, else the built-in default (for workspaces created before it existed).
+fn resolve_prompt(root: &str) -> String {
+    let path = Path::new(root)
+        .join(".iudex")
+        .join("prompts")
+        .join("resolve.md");
+    match std::fs::read_to_string(&path) {
+        Ok(s) if !s.trim().is_empty() => s,
+        _ => RESOLVE_PROMPT.to_string(),
+    }
+}
+
 /// Launch a conflict-resolution agent into the worktree. Assumes a merge is
 /// already in progress there (the GUI runs `begin_resolution` first). It is a
 /// normal agent-kind session (ticket set, role `resolve`), so it appears in the
@@ -386,7 +399,8 @@ Touch only the conflicted files; change nothing else.";
 #[tauri::command]
 pub fn spawn_resolver(root: String, ticket: String, worktree: String) -> Result<Session, String> {
     let agent = agent_command(&root);
-    let cmd = format!("cd {} && {} {}", sh_quote(&worktree), agent, sh_quote(RESOLVE_PROMPT));
+    let prompt = resolve_prompt(&root);
+    let cmd = format!("cd {} && {} {}", sh_quote(&worktree), agent, sh_quote(&prompt));
 
     let started = now_millis();
     let name = format!(

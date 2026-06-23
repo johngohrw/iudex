@@ -178,11 +178,12 @@ fn write_config(root: String, config: Config) -> Result<(), String> {
     Ok(())
 }
 
-/// The path for a named prompt template, guarded to the two known prompts.
+/// The path for a named prompt template, guarded to the known prompts.
 fn prompt_path(root: &str, name: &str) -> Result<std::path::PathBuf, String> {
     let file = match name {
         "impl" => "impl.md",
         "review" => "review.md",
+        "resolve" => "resolve.md",
         _ => return Err(format!("unknown prompt {name:?}")),
     };
     Ok(Path::new(root).join(".iudex").join("prompts").join(file))
@@ -191,7 +192,15 @@ fn prompt_path(root: &str, name: &str) -> Result<std::path::PathBuf, String> {
 #[tauri::command]
 fn read_prompt(root: String, name: String) -> Result<String, String> {
     let path = prompt_path(&root, &name)?;
-    std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))
+    match std::fs::read_to_string(&path) {
+        Ok(s) => Ok(s),
+        // resolve.md may not exist in workspaces created before it did — show the
+        // built-in default so it's still editable (saving creates the file).
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound && name == "resolve" => {
+            Ok(crate::tmux::RESOLVE_PROMPT.to_string())
+        }
+        Err(e) => Err(format!("read {}: {e}", path.display())),
+    }
 }
 
 #[tauri::command]

@@ -28,6 +28,7 @@ export default function Settings({
   const [config, setConfig] = useState<Config | null>(null);
   const [impl, setImpl] = useState("");
   const [review, setReview] = useState("");
+  const [resolve, setResolve] = useState("");
   const [loadErr, setLoadErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,12 +37,14 @@ export default function Settings({
       invoke<Config>("read_config", { root }),
       invoke<string>("read_prompt", { root, name: "impl" }),
       invoke<string>("read_prompt", { root, name: "review" }),
+      invoke<string>("read_prompt", { root, name: "resolve" }),
     ])
-      .then(([c, i, r]) => {
+      .then(([c, i, r, res]) => {
         if (!alive) return;
         setConfig(c);
         setImpl(i);
         setReview(r);
+        setResolve(res);
         setLoadErr(null);
       })
       .catch((e) => alive && setLoadErr(String(e)));
@@ -90,6 +93,8 @@ export default function Settings({
               setImpl={setImpl}
               review={review}
               setReview={setReview}
+              resolve={resolve}
+              setResolve={setResolve}
             />
           )}
         </div>
@@ -228,12 +233,16 @@ function PromptsTab({
   setImpl,
   review,
   setReview,
+  resolve,
+  setResolve,
 }: {
   root: string;
   impl: string;
   setImpl: (v: string) => void;
   review: string;
   setReview: (v: string) => void;
+  resolve: string;
+  setResolve: (v: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<Saved>(null);
@@ -244,6 +253,7 @@ function PromptsTab({
     try {
       await invoke("write_prompt", { root, name: "impl", content: impl });
       await invoke("write_prompt", { root, name: "review", content: review });
+      await invoke("write_prompt", { root, name: "resolve", content: resolve });
       setSaved({ ok: true, msg: "saved" });
     } catch (e) {
       setSaved({ ok: false, msg: String(e) });
@@ -286,6 +296,22 @@ function PromptsTab({
           value={review}
           onChange={(e) => {
             setReview(e.target.value);
+            setSaved(null);
+          }}
+          spellCheck={false}
+        />
+      </label>
+
+      <label className="field">
+        <span>
+          Resolve prompt <code className={s.path}>resolve.md</code>
+        </span>
+        <textarea
+          className={s.prompt}
+          rows={14}
+          value={resolve}
+          onChange={(e) => {
+            setResolve(e.target.value);
             setSaved(null);
           }}
           spellCheck={false}
