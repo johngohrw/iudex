@@ -21,10 +21,12 @@ function sessionDot(sessions: Session[], name: string): string {
 // so switching tabs never tears down a terminal. `focus` lets another view
 // (Agents "open in Terminal") jump straight to a session's tab.
 export default function Terminal({
+  root,
   visible,
   focus,
   onFocusHandled,
 }: {
+  root: string;
   visible: boolean;
   focus?: string | null;
   onFocusHandled?: () => void;
@@ -65,7 +67,7 @@ export default function Terminal({
 
   const newShell = async () => {
     try {
-      const s = await invoke<{ name: string }>("create_shell");
+      const s = await invoke<{ name: string }>("create_shell", { cwd: root });
       openSession(s.name);
     } catch (e) {
       setError(String(e));

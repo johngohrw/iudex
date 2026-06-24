@@ -595,6 +595,7 @@ export default function App() {
             {renderView(
               "terminal",
               <Terminal
+                root={root}
                 visible={view === "terminal"}
                 focus={focusSession}
                 onFocusHandled={() => setFocusSession(null)}
