@@ -474,16 +474,6 @@ export default function App() {
           <span className={a.wsChev}>▾</span>
         </div>
         <div className={a.spacer} />
-        <div
-          className={`${a.gear} ${view === "settings" ? a.gearActive : ""}`}
-          onClick={() => setView("settings")}
-        >
-          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.2">
-            <circle cx="5.5" cy="5.5" r="1.8" />
-            <path d="M5.5 1v1M5.5 9v1M1 5.5h1M9 5.5h1M2.3 2.3l.7.7M8 8l.7.7M8.7 2.3l-.7.7M3 8l-.7.7" />
-          </svg>
-          <span>Settings</span>
-        </div>
       </header>
 
       {root && ws && (

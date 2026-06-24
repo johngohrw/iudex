@@ -236,27 +236,6 @@
   flex: 1;
 }
 
-.gear {
-  height: 26px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0 9px;
-  cursor: pointer;
-  background: t.$sidebar;
-  border: 1px solid t.$divider-chrome;
-  color: t.$text-light;
-  font-size: 11px;
-
-  &:hover {
-    background: #474747;
-  }
-  &.gearActive {
-    color: t.$text-bright;
-    border-color: t.$amber;
-  }
-}
-
 // ── Body / left rail / main ───────────────────────────────────────────────────
 
 .body {

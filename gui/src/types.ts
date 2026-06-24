@@ -157,8 +157,7 @@ export type View =
   | "archive"
   | "settings";
 
-// Per-view status-dot color (DESIGN.md §4). Settings is reached via the top-bar
-// gear, not the left rail, so it carries the muted dot but isn't in RAIL_VIEWS.
+// Per-view status-dot color (DESIGN.md §4).
 export const VIEWS: { id: View; label: string; dot: string }[] = [
   { id: "dashboard", label: "Dashboard", dot: "#f4bc41" },
   { id: "terminal", label: "Terminal", dot: "#72f6aa" },
@@ -172,11 +171,10 @@ export const VIEWS: { id: View; label: string; dot: string }[] = [
 
 // Side-channel views, pinned to the bottom of the rail (above the pipeline) —
 // useful but not part of the core queue→implement→QA→review→merge workflow.
-const SECONDARY_IDS: View[] = ["worktrees", "archive"];
+// Settings sits last in this group.
+const SECONDARY_IDS: View[] = ["worktrees", "archive", "settings"];
 
 // The left-nav rail, split into a top (core workflow) and bottom (secondary)
-// group. Settings lives in the top-bar gear instead.
-export const RAIL_VIEWS = VIEWS.filter(
-  (v) => v.id !== "settings" && !SECONDARY_IDS.includes(v.id),
-);
+// group.
+export const RAIL_VIEWS = VIEWS.filter((v) => !SECONDARY_IDS.includes(v.id));
 export const RAIL_SECONDARY = VIEWS.filter((v) => SECONDARY_IDS.includes(v.id));
