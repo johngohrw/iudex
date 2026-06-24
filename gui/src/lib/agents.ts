@@ -51,9 +51,12 @@ export function resolveStatus(opts: {
   if (resolution) {
     // No merge in progress → it was committed (or aborted): episode over.
     if (!resolution.mergeInProgress) return "resolved";
-    // Merge in progress with conflicts left for a human — explicitly flagged, or
-    // the agent exited without finishing (anything unmerged remains).
-    if (resolution.flagged.length > 0 || dead) return "flagged";
+    // Conflicts left for a human: either the agent explicitly flagged a file
+    // (gave it a reason in its report), or it exited with files still unmerged.
+    // `flagged` lists EVERY unmerged file, so checking the count would read as
+    // flagged the instant the merge starts — gate on a reason / on the process
+    // having exited instead, so a working agent stays "working".
+    if (resolution.flagged.some((f) => f.reason) || dead) return "flagged";
   }
   // Merge in progress, nothing flagged yet — still working.
   return quietMs < 5000 ? "working" : "idle";
