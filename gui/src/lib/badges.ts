@@ -90,6 +90,8 @@ export const AGENT_STATUS: Record<string, string> = {
   idle: "#f4bc41",
   "awaiting-finish": "#f4bc41",
   "review-ready": "#836ddd",
+  resolved: "#5ccf5c", // merge committed — success
+  flagged: "#e6b54c", // conflicts left for a human (matches the Review conflict badge)
   crashed: "#e0584c",
   done: "#5ccf5c",
   gone: "#565656",

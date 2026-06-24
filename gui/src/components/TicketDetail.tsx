@@ -30,9 +30,11 @@ function serializeBrief(title: string, body: string): string {
 // Dot color for a synthesized agent status.
 function dotClass(status: AgentStatus): string {
   switch (status) {
-    case "working": return s.green;
+    case "working":
+    case "resolved": return s.green;
     case "awaiting-finish":
-    case "review-ready": return s.blue;
+    case "review-ready":
+    case "flagged": return s.blue;
     case "crashed":
     case "gone": return s.red;
     default: return s.grey;

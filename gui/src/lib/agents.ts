@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { Session, Workspace } from "../types";
+import type { Resolution, Session, Workspace } from "../types";
 
 export type AgentStatus =
   | "working"
   | "idle"
   | "awaiting-finish"
   | "review-ready"
+  | "resolved"
+  | "flagged"
   | "crashed"
   | "done"
   | "gone";
@@ -16,15 +18,45 @@ export const STATUS_LABEL: Record<AgentStatus, string> = {
   idle: "idle",
   "awaiting-finish": "awaiting finish",
   "review-ready": "review ready",
+  resolved: "resolved",
+  flagged: "flagged",
   crashed: "crashed",
   done: "done",
   gone: "gone",
 };
 
 // "Finished" for clear-all-finished: the agent won't do more work — its ticket
-// has moved past its role (done) or its process died (crashed).
+// has moved past its role (done), the merge it ran is committed (resolved), or
+// its process died (crashed). NOT `flagged`: that's a needs-you marker, kept in
+// the rail until you handle it (it self-clears to `resolved` once committed).
 export function isFinished(s: AgentStatus): boolean {
-  return s === "done" || s === "crashed";
+  return s === "done" || s === "resolved" || s === "crashed";
+}
+
+// A resolver agent's status derived from the authoritative git merge state +
+// the resolution.json it writes (read via read_resolution), rather than from
+// process liveness alone. Live-derived, so it self-heals: once you commit (or
+// abort) the merge in Review, `flagged` re-derives to `resolved` on its own.
+export function resolveStatus(opts: {
+  dead: boolean;
+  exitCode: number | null;
+  ticketState: string | undefined;
+  quietMs: number;
+  resolution: Resolution | null;
+}): AgentStatus {
+  const { dead, exitCode, ticketState, quietMs, resolution } = opts;
+  // Human approved/rejected → ticket left pending-human-qa → this agent is done.
+  if (ticketState !== "pending-human-qa") return "done";
+  if (dead && exitCode !== 0) return "crashed";
+  if (resolution) {
+    // No merge in progress → it was committed (or aborted): episode over.
+    if (!resolution.mergeInProgress) return "resolved";
+    // Merge in progress with conflicts left for a human — explicitly flagged, or
+    // the agent exited without finishing (anything unmerged remains).
+    if (resolution.flagged.length > 0 || dead) return "flagged";
+  }
+  // Merge in progress, nothing flagged yet — still working.
+  return quietMs < 5000 ? "working" : "idle";
 }
 
 // Synthesize an agent's status from process liveness (pane dead/exit), output
@@ -80,17 +112,38 @@ export function useAgentStatuses(
               act.last = Date.now();
             }
             activity.current[a.name] = act;
-            const ticketState = a.ticket
-              ? ws.tickets.find((t) => t.id === a.ticket)?.state
-              : undefined;
+            const ticket = a.ticket ? ws.tickets.find((t) => t.id === a.ticket) : undefined;
+            const quietMs = Date.now() - act.last;
+
+            // Resolver agents derive their outcome from the merge state, not just
+            // process liveness, so the panel shows resolved / flagged / working.
+            if (a.role === "resolve") {
+              let resolution: Resolution | null = null;
+              if (ticket?.worktree) {
+                resolution = await invoke<Resolution>("read_resolution", {
+                  worktree: ticket.worktree,
+                }).catch(() => null);
+              }
+              return [
+                a.name,
+                resolveStatus({
+                  dead: live.dead,
+                  exitCode: live.exitCode,
+                  ticketState: ticket?.state,
+                  quietMs,
+                  resolution,
+                }),
+              ] as const;
+            }
+
             return [
               a.name,
               synthStatus({
                 dead: live.dead,
                 exitCode: live.exitCode,
                 role: a.role,
-                ticketState,
-                quietMs: Date.now() - act.last,
+                ticketState: ticket?.state,
+                quietMs,
               }),
             ] as const;
           } catch {
