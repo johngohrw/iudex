@@ -10,6 +10,7 @@ import Button from "../components/Button";
 import TabSwitcher from "../components/TabSwitcher";
 import TicketDetail from "../components/TicketDetail";
 import TicketGraph from "./TicketGraph";
+import TicketBoard from "./TicketBoard";
 import s from "./Tickets.module.scss";
 
 // The row action button style per variant (ported from iudex.dc.html ACT map).
@@ -41,7 +42,7 @@ export default function Tickets({
   const [composing, setComposing] = useState(false);
   const [ideating, setIdeating] = useState(false);
   const [selId, setSelId] = useState<string | null>(null);
-  const [mode, setMode] = useState<"table" | "graph">("table");
+  const [mode, setMode] = useState<"board" | "table" | "graph">("board");
 
   // Human titles for tickets that have a worktree (briefs live in the worktree).
   const titles = useBriefTitles(
@@ -50,8 +51,9 @@ export default function Tickets({
   );
   const titleOf = (t: Ticket) => (t.worktree && titles[t.worktree]) || "";
 
-  // Tickets shown in the table/graph (removed are hidden).
-  const visible = ws.tickets.filter((t) => t.state !== "removed");
+  // Tickets shown across all three views: the live working set. Terminal
+  // tickets are hidden — removed are gone, done graduate to the archive.
+  const visible = ws.tickets.filter((t) => t.state !== "removed" && t.state !== "done");
 
   const sel = selId ? (ws.tickets.find((t) => t.id === selId) ?? null) : null;
   // Drop selection if the ticket disappears (e.g. removed).
@@ -116,9 +118,9 @@ export default function Tickets({
         <span className={s.headerDot} />
         <span className={s.headerTitle}>Tickets</span>
         <TabSwitcher
-          tabs={["Table", "Graph"]}
-          value={mode === "table" ? "Table" : "Graph"}
-          onChange={(v) => setMode(v === "Graph" ? "graph" : "table")}
+          tabs={["Board", "Table", "Graph"]}
+          value={mode[0].toUpperCase() + mode.slice(1)}
+          onChange={(v) => setMode(v.toLowerCase() as typeof mode)}
           style={{ marginLeft: 4 }}
         />
         <span className={s.headerSpacer} />
@@ -136,6 +138,14 @@ export default function Tickets({
         <div className={s.listPane}>
           {mode === "graph" ? (
             <TicketGraph tickets={visible} titles={titles} selId={selId} onSelect={setSelId} />
+          ) : mode === "board" ? (
+            <TicketBoard
+              tickets={visible}
+              titles={titles}
+              maxActive={ws.maxActive}
+              selId={selId}
+              onSelect={setSelId}
+            />
           ) : (
             <>
               <div className={s.thead}>
