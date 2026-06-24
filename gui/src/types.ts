@@ -106,15 +106,30 @@ export interface Preflight {
   ready: boolean;
 }
 
-// The editable `.iudex/config.yml` fields (from `read_config`/`write_config`).
+// The editable `.iudex/config.yml` scalar fields (from `read_config`/
+// `write_config`). The agent-command pool lives separately (see AgentSettings).
 export interface Config {
   mainBranch: string;
   maxActive: number;
   qaRejectLimit: number;
-  agentCommand: string;
   mergeStrategy: string;
   mergeMessageTemplate: string;
   branchPrefix: string;
+}
+
+// One named entry in the agent-command pool.
+export interface AgentCmd {
+  name: string;
+  command: string;
+  default: boolean;
+}
+
+// The agent pool + per-role map (from `read_agent_config`/`write_agent_config`).
+// `roles` maps a role name (impl, qa, resolve, idea) to a pool entry's name; an
+// absent role uses the default entry.
+export interface AgentSettings {
+  commands: AgentCmd[];
+  roles: Record<string, string>;
 }
 
 // A session in the unified tmux pool, mirroring the Rust `Session` struct.

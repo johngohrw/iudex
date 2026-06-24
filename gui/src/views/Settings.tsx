@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import type { Config } from "../types";
+import type { AgentCmd, AgentSettings, Config } from "../types";
 import ViewHeader from "../components/ViewHeader";
 import s from "./Settings.module.scss";
 
 type Saved = { ok: boolean; msg: string } | null;
-type SubTab = "cli" | "general" | "prompts";
+type SubTab = "cli" | "general" | "agents" | "prompts";
 
 // Sidebar grouped by scope: GLOBAL settings live in ~/.iudex/ and apply to the
 // app itself; WORKSPACE settings are the per-project .iudex/ files and need an
@@ -22,6 +22,7 @@ const GROUPS: {
     scope: "workspace",
     items: [
       { id: "general", label: "General" },
+      { id: "agents", label: "Agents" },
       { id: "prompts", label: "Prompts" },
     ],
   },
@@ -30,6 +31,7 @@ const GROUPS: {
 const SUBTITLES: Record<SubTab, string> = {
   cli: "~/.iudex/settings.json",
   general: ".iudex/config.yml",
+  agents: ".iudex/config.yml",
   prompts: ".iudex/prompts/",
 };
 
@@ -115,6 +117,8 @@ export default function Settings({
             <CliTab />
           ) : !root ? (
             <div className={s.loading}>open a workspace to edit its settings</div>
+          ) : tab === "agents" ? (
+            <AgentsTab root={root} />
           ) : loadErr ? (
             <div className="error">{loadErr}</div>
           ) : !config ? (
@@ -340,11 +344,6 @@ function GeneralTab({
       </label>
 
       <label className="field">
-        <span>Agent command</span>
-        <input value={config.agentCommand} onChange={(e) => set("agentCommand", e.target.value)} />
-      </label>
-
-      <label className="field">
         <span>Merge message template</span>
         <input
           value={config.mergeMessageTemplate}
@@ -470,6 +469,200 @@ function PromptsTab({
         <SavedNote saved={saved} />
         <button disabled={busy} onClick={save}>
           {busy ? "Saving…" : "Save prompts"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+// The four roles the GUI exposes (the schema's role map is open; consumers
+// ignore unknown keys). impl/qa are consumed by `iudex spawn`; resolve/idea by
+// the GUI's tmux spawns.
+const AGENT_ROLES: { key: string; label: string; hint: string }[] = [
+  { key: "impl", label: "Impl", hint: "active ticket" },
+  { key: "qa", label: "QA", hint: "pending-qa review" },
+  { key: "resolve", label: "Resolve", hint: "merge-conflict resolver" },
+  { key: "idea", label: "Idea", hint: "skill shaping" },
+];
+
+// WORKSPACE tab: the agent-command pool (config.yml `agent_commands`) + the
+// per-role map (`agent_roles`). The CLI resolves impl/qa inside `iudex spawn`
+// and the GUI resolves resolve/idea, both off these same fields.
+function AgentsTab({ root }: { root: string }) {
+  const [commands, setCommands] = useState<AgentCmd[]>([]);
+  const [roles, setRoles] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState<Saved>(null);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    invoke<AgentSettings>("read_agent_config", { root })
+      .then((a) => {
+        if (!alive) return;
+        setCommands(a.commands);
+        setRoles(a.roles);
+        setLoadErr(null);
+      })
+      .catch((e) => alive && setLoadErr(String(e)));
+    return () => {
+      alive = false;
+    };
+  }, [root]);
+
+  const touch = () => setSaved(null);
+  const patchCmd = (i: number, p: Partial<AgentCmd>) => {
+    setCommands((cs) => cs.map((c, j) => (j === i ? { ...c, ...p } : c)));
+    touch();
+  };
+  const makeDefault = (i: number) => {
+    setCommands((cs) => cs.map((c, j) => ({ ...c, default: j === i })));
+    touch();
+  };
+  const addCmd = () => {
+    setCommands((cs) => [...cs, { name: "", command: "", default: cs.length === 0 }]);
+    touch();
+  };
+  const removeCmd = (i: number) => {
+    setCommands((cs) => {
+      const next = cs.filter((_, j) => j !== i);
+      if (next.length && !next.some((c) => c.default)) next[0] = { ...next[0], default: true };
+      return next;
+    });
+    touch();
+  };
+  const setRole = (key: string, name: string) => {
+    setRoles((r) => {
+      const n = { ...r };
+      if (name) n[key] = name;
+      else delete n[key];
+      return n;
+    });
+    touch();
+  };
+
+  const names = commands.map((c) => c.name.trim()).filter(Boolean);
+  const validate = (): string | null => {
+    if (commands.length === 0) return "add at least one command";
+    if (commands.some((c) => !c.name.trim() || !c.command.trim()))
+      return "every entry needs a name and a command";
+    if (new Set(names).size !== names.length) return "command names must be unique";
+    if (!commands.some((c) => c.default)) return "mark one entry as default";
+    return null;
+  };
+
+  const save = async () => {
+    const err = validate();
+    if (err) {
+      setSaved({ ok: false, msg: err });
+      return;
+    }
+    setBusy(true);
+    setSaved(null);
+    try {
+      const valid = new Set(names);
+      const cleanRoles: Record<string, string> = {};
+      for (const [k, v] of Object.entries(roles)) if (valid.has(v)) cleanRoles[k] = v;
+      const trimmed = commands.map((c) => ({
+        name: c.name.trim(),
+        command: c.command.trim(),
+        default: c.default,
+      }));
+      await invoke("write_agent_config", { root, config: { commands: trimmed, roles: cleanRoles } });
+      await invoke("iudex_status", { root }); // confirm the CLI can still parse it
+      setRoles(cleanRoles);
+      setSaved({ ok: true, msg: "saved" });
+    } catch (e) {
+      setSaved({ ok: false, msg: String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loadErr) return <div className="error">{loadErr}</div>;
+
+  return (
+    <section className={s.card}>
+      <div className={s.head}>
+        <span className={s.title}>Agent commands</span>
+        <code className={s.path}>.iudex/config.yml</code>
+      </div>
+
+      <div className={s.fields}>
+        <div className="field">
+          <span>Command pool</span>
+          <div className={s.agentPool}>
+            {commands.length === 0 && <div className={s.note}>no commands yet</div>}
+            {commands.map((c, i) => (
+              <div key={i} className={s.agentRow}>
+                <input
+                  className={s.agentName}
+                  placeholder="name"
+                  value={c.name}
+                  spellCheck={false}
+                  onChange={(e) => patchCmd(i, { name: e.target.value })}
+                />
+                <input
+                  className={s.agentCmd}
+                  placeholder="command — e.g. claude --model …"
+                  value={c.command}
+                  spellCheck={false}
+                  onChange={(e) => patchCmd(i, { command: e.target.value })}
+                />
+                <label className={s.agentDefault} title="default — used by any unmapped role">
+                  <input
+                    type="radio"
+                    name="agent-default"
+                    checked={c.default}
+                    onChange={() => makeDefault(i)}
+                  />
+                  default
+                </label>
+                <button
+                  type="button"
+                  className={s.agentDel}
+                  title="remove"
+                  onClick={() => removeCmd(i)}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+          <button type="button" className={s.agentAdd} onClick={addCmd}>
+            + add command
+          </button>
+        </div>
+
+        <div className="field">
+          <span>Role defaults</span>
+          <div className={s.roleGrid}>
+            {AGENT_ROLES.map((r) => (
+              <div key={r.key} className={s.roleRow}>
+                <span className={s.roleLabel}>
+                  {r.label}
+                  <small className={s.note}> · {r.hint}</small>
+                </span>
+                <select value={roles[r.key] ?? ""} onChange={(e) => setRole(r.key, e.target.value)}>
+                  <option value="">(default)</option>
+                  {commands
+                    .filter((c) => c.name.trim())
+                    .map((c) => (
+                      <option key={c.name} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className={s.actions}>
+        <SavedNote saved={saved} />
+        <button disabled={busy} onClick={save}>
+          {busy ? "Saving…" : "Save agents"}
         </button>
       </div>
     </section>

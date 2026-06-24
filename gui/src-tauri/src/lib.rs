@@ -234,7 +234,6 @@ struct Config {
     main_branch: String,
     max_active: i64,
     qa_reject_limit: i64,
-    agent_command: String,
     merge_strategy: String,
     merge_message_template: String,
     branch_prefix: String,
@@ -269,7 +268,6 @@ fn read_config(root: String) -> Result<Config, String> {
         main_branch: s("main_branch"),
         max_active: n("max_active"),
         qa_reject_limit: n("qa_reject_limit"),
-        agent_command: s("agent_command"),
         merge_strategy: s("merge_strategy"),
         merge_message_template: s("merge_message_template"),
         branch_prefix: s("branch_prefix"),
@@ -290,7 +288,6 @@ fn write_config(root: String, config: Config) -> Result<(), String> {
         ("main_branch", q(&config.main_branch)),
         ("max_active", config.max_active.to_string()),
         ("qa_reject_limit", config.qa_reject_limit.to_string()),
-        ("agent_command", q(&config.agent_command)),
         ("merge_strategy", q(&config.merge_strategy)),
         ("merge_message_template", q(&config.merge_message_template)),
         ("branch_prefix", q(&config.branch_prefix)),
@@ -314,6 +311,183 @@ fn write_config(root: String, config: Config) -> Result<(), String> {
         out.push('\n');
     }
     std::fs::write(&path, out).map_err(|e| format!("write config.yml: {e}"))?;
+    Ok(())
+}
+
+// ── Agent command pool + per-role mapping ─────────────────────────────────────
+// The pool of named agent commands and the role→name map live in config.yml
+// (`agent_commands` + `agent_roles`). The CLI is the authority for impl/qa
+// (resolved inside `iudex spawn`); the GUI resolves resolve/idea here. Both share
+// the same resolution rules so they can't diverge.
+
+/// One named entry in the agent-command pool.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Default)]
+struct AgentCmd {
+    name: String,
+    command: String,
+    #[serde(default)]
+    default: bool,
+}
+
+/// The agent settings as the GUI edits them.
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+struct AgentSettings {
+    commands: Vec<AgentCmd>,
+    roles: std::collections::BTreeMap<String, String>,
+}
+
+/// config.yml's agent-related fields (plus the legacy single `agent_command`).
+#[derive(serde::Deserialize, Default)]
+struct RawAgentConfig {
+    #[serde(default)]
+    agent_commands: Vec<AgentCmd>,
+    #[serde(default)]
+    agent_roles: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    agent_command: Option<String>,
+}
+
+/// Load the agent settings from config.yml, folding a legacy single
+/// `agent_command` into the pool as the default (matching the CLI's migration).
+fn load_agent_settings(root: &str) -> AgentSettings {
+    let text = std::fs::read_to_string(config_path(root)).unwrap_or_default();
+    let raw: RawAgentConfig = serde_yaml::from_str(&text).unwrap_or_default();
+    let commands = if raw.agent_commands.is_empty() {
+        match raw.agent_command {
+            Some(c) if !c.is_empty() => vec![AgentCmd {
+                name: c.clone(),
+                command: c,
+                default: true,
+            }],
+            _ => vec![],
+        }
+    } else {
+        raw.agent_commands
+    };
+    AgentSettings {
+        commands,
+        roles: raw.agent_roles,
+    }
+}
+
+/// Resolve the agent command for a role: the role's mapped pool entry by name,
+/// falling back to the default entry (then the first, then "pi"). Shared with
+/// tmux.rs for the resolve/idea spawns.
+pub(crate) fn resolve_agent_command(root: &str, role: &str) -> String {
+    let cfg = load_agent_settings(root);
+    if let Some(name) = cfg.roles.get(role) {
+        if let Some(c) = cfg.commands.iter().find(|c| &c.name == name) {
+            return c.command.clone();
+        }
+    }
+    if let Some(c) = cfg.commands.iter().find(|c| c.default) {
+        return c.command.clone();
+    }
+    cfg.commands
+        .first()
+        .map(|c| c.command.clone())
+        .unwrap_or_else(|| "pi".to_string())
+}
+
+#[tauri::command]
+fn read_agent_config(root: String) -> AgentSettings {
+    load_agent_settings(&root)
+}
+
+/// Double-quote a YAML scalar (commands carry spaces/flags; names are refs).
+fn yaml_q(v: &str) -> String {
+    format!("\"{}\"", v.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+/// Render the `agent_commands` + `agent_roles` blocks (with their comments).
+fn render_agent_section(cfg: &AgentSettings) -> Vec<String> {
+    let mut out: Vec<String> = vec![
+        "# Pool of named agent commands used to build spawn commands. iudex never".into(),
+        "# launches the agent itself — it only prints the command for you to run.".into(),
+        "# Exactly one entry is marked `default: true`; it backs any unmapped role.".into(),
+    ];
+    if cfg.commands.is_empty() {
+        out.push("agent_commands: []".into());
+    } else {
+        out.push("agent_commands:".into());
+        for c in &cfg.commands {
+            out.push(format!("  - name: {}", yaml_q(&c.name)));
+            out.push(format!("    command: {}", yaml_q(&c.command)));
+            if c.default {
+                out.push("    default: true".into());
+            }
+        }
+    }
+    out.push(String::new());
+    out.push("# Per-role agent selection (impl, qa, resolve, idea). Maps a role to a".into());
+    out.push("# command name from the pool; omitted roles use the default entry.".into());
+    if cfg.roles.is_empty() {
+        out.push("agent_roles: {}".into());
+    } else {
+        out.push("agent_roles:".into());
+        for (k, v) in &cfg.roles {
+            out.push(format!("  {k}: {}", yaml_q(v)));
+        }
+    }
+    out
+}
+
+/// Persist the agent pool + role map. Strips the existing agent blocks (and their
+/// comments, and the legacy `agent_command:`) and appends freshly-rendered ones,
+/// leaving every other key and its comments byte-identical (General's surgical
+/// scalar writer is untouched).
+#[tauri::command]
+fn write_agent_config(root: String, config: AgentSettings) -> Result<(), String> {
+    let path = config_path(&root);
+    let text = std::fs::read_to_string(&path).map_err(|e| format!("read config.yml: {e}"))?;
+
+    let is_agent_key = |t: &str| {
+        t.starts_with("agent_roles:")
+            || t.starts_with("agent_commands:")
+            || (t.starts_with("agent_command:") && !t.starts_with("agent_commands:"))
+    };
+
+    let lines: Vec<&str> = text.lines().collect();
+    let mut out: Vec<String> = Vec::with_capacity(lines.len());
+    let mut i = 0;
+    while i < lines.len() {
+        let line = lines[i];
+        let top_level = !line.starts_with(char::is_whitespace) && !line.trim().is_empty();
+        if top_level && is_agent_key(line.trim_start()) {
+            // Drop the comment lines we already emitted for this block.
+            while out.last().is_some_and(|l| l.trim_start().starts_with('#')) {
+                out.pop();
+            }
+            // Skip the key line, its indented/list children, and one trailing blank.
+            i += 1;
+            while i < lines.len() {
+                let l = lines[i];
+                if l.trim().is_empty() {
+                    i += 1;
+                    break;
+                }
+                if l.starts_with(char::is_whitespace) || l.trim_start().starts_with('-') {
+                    i += 1;
+                    continue;
+                }
+                break;
+            }
+            continue;
+        }
+        out.push(line.to_string());
+        i += 1;
+    }
+
+    // Trim trailing blank lines, then append the agent section with one separator.
+    while out.last().is_some_and(|l| l.trim().is_empty()) {
+        out.pop();
+    }
+    out.push(String::new());
+    out.extend(render_agent_section(&config));
+
+    let mut joined = out.join("\n");
+    joined.push('\n');
+    std::fs::write(&path, joined).map_err(|e| format!("write config.yml: {e}"))?;
     Ok(())
 }
 
@@ -1393,6 +1567,8 @@ pub fn run() {
             init_workspace,
             read_config,
             write_config,
+            read_agent_config,
+            write_agent_config,
             read_prompt,
             write_prompt,
             iudex_status,
@@ -1437,4 +1613,63 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Round-trips the agent config through write/read and asserts the YAML
+    // surgery preserves every other key + its comments and drops the legacy
+    // single `agent_command`.
+    #[test]
+    fn agent_config_roundtrip_preserves_other_keys() {
+        let dir = std::env::temp_dir().join(format!("iudex-agtest-{}", std::process::id()));
+        let iudex = dir.join(".iudex");
+        std::fs::create_dir_all(&iudex).unwrap();
+        let cfg = "# header comment\n\
+main_branch: main\n\
+max_active: 4\n\
+\n\
+# agent comment a\n\
+# agent comment b\n\
+agent_command: pi\n\
+\n\
+# merge comment\n\
+merge_strategy: no-ff\n\
+branch_prefix: \"work/\"\n";
+        std::fs::write(iudex.join("config.yml"), cfg).unwrap();
+        let root = dir.to_string_lossy().to_string();
+
+        // Legacy single command migrates to a default pool entry.
+        let before = load_agent_settings(&root);
+        assert_eq!(before.commands.len(), 1);
+        assert!(before.commands[0].default);
+        assert_eq!(before.commands[0].command, "pi");
+
+        let new = AgentSettings {
+            commands: vec![
+                AgentCmd { name: "pi".into(), command: "pi".into(), default: true },
+                AgentCmd { name: "claude".into(), command: "claude --x".into(), default: false },
+            ],
+            roles: std::collections::BTreeMap::from([("qa".to_string(), "claude".to_string())]),
+        };
+        write_agent_config(root.clone(), new).unwrap();
+
+        let text = std::fs::read_to_string(iudex.join("config.yml")).unwrap();
+        assert!(text.contains("main_branch: main"));
+        assert!(text.contains("# merge comment"));
+        assert!(text.contains("merge_strategy: no-ff"));
+        assert!(text.contains("branch_prefix:"));
+        // The legacy single key is gone (agent_commands: is a different key).
+        assert!(!text.contains("agent_command: pi"));
+
+        let back = load_agent_settings(&root);
+        assert_eq!(back.commands.len(), 2);
+        assert_eq!(back.roles.get("qa").map(String::as_str), Some("claude"));
+        assert_eq!(resolve_agent_command(&root, "qa"), "claude --x");
+        assert_eq!(resolve_agent_command(&root, "impl"), "pi"); // unmapped → default
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }

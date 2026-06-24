@@ -277,28 +277,6 @@ fn sh_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
-/// The workspace's configured agent binary (`agent_command` in
-/// `.iudex/config.yml`), used to build the idea-agent spawn command. iudex has
-/// no read API for it, so we scan the one well-known line; defaults to `pi`.
-fn agent_command(root: &str) -> String {
-    let path = Path::new(root).join(".iudex").join("config.yml");
-    if let Ok(text) = std::fs::read_to_string(path) {
-        for line in text.lines() {
-            let line = line.trim();
-            if line.starts_with('#') {
-                continue;
-            }
-            if let Some(val) = line.strip_prefix("agent_command:") {
-                let v = val.trim().trim_matches('"').trim_matches('\'').trim();
-                if !v.is_empty() {
-                    return v.to_string();
-                }
-            }
-        }
-    }
-    "pi".to_string()
-}
-
 /// Launch an idea-shaping agent into the pool: run the configured agent at the
 /// workspace root, preloaded with a front-of-funnel skill (grill-me, …) and an
 /// optional seed. The agent loads the skill via AGENTS.md and drives the chain
@@ -316,7 +294,7 @@ pub fn spawn_idea(root: String, skill: String, seed: String) -> Result<Session, 
         prompt.push_str(&format!("\n\nIdea / focus:\n{}", seed.trim()));
     }
 
-    let agent = agent_command(&root);
+    let agent = crate::resolve_agent_command(&root, "idea");
     // Run the agent at the workspace root (skills live there, not in worktrees).
     let cmd = format!("cd {} && {} {}", sh_quote(&root), agent, sh_quote(&prompt));
 
@@ -398,7 +376,7 @@ fn resolve_prompt(root: &str) -> String {
 /// resolution is GUI territory, so the prompt is built here, not by the CLI.
 #[tauri::command]
 pub fn spawn_resolver(root: String, ticket: String, worktree: String) -> Result<Session, String> {
-    let agent = agent_command(&root);
+    let agent = crate::resolve_agent_command(&root, "resolve");
     let prompt = resolve_prompt(&root);
     let cmd = format!("cd {} && {} {}", sh_quote(&worktree), agent, sh_quote(&prompt));
 
