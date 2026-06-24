@@ -38,7 +38,11 @@ $violet: #836ddd; // review / pending-human-qa
 $violet-border: #5b46b0;
 $danger: #e0584c; // error / failed / record
 $danger-border: #b03d33;
-$success: #5ccf5c; // running / merged / done
+$success: #5ccf5c; // running / merged / done (bright accent / dots / text)
+$success-fill: #3b853d; // green button/badge fill (readable with white text)
+$success-fill-border: #2e6b30;
+$info-fill: #3a6ea5; // blue button fill (readable with white text)
+$info-fill-border: #2d5680;
 $periwinkle: #9ea0e0; // worktrees
 
 // Diff add/remove (within the dark module)

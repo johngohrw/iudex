@@ -30,7 +30,16 @@
 .actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
+}
+
+// Divider between the conflict picks and the rest (revert / cancel / commit).
+.sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 1px 3px;
+  background: t.$divider-mid;
 }
 
 .warn {

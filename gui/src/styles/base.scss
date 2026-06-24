@@ -73,6 +73,42 @@ body {
     background: t.$danger;
     border-color: t.$danger-border;
     color: #fff;
+
+    // Own hover (darken the fill) — beats the base .esc:hover gray, which would
+    // otherwise override the colored fill.
+    &:hover:not(:disabled) {
+      background: #cf4d42;
+    }
+  }
+
+  &.success {
+    background: t.$success-fill;
+    border-color: t.$success-fill-border;
+    color: #fff;
+
+    &:hover:not(:disabled) {
+      background: #336f35;
+    }
+  }
+
+  &.info {
+    background: t.$info-fill;
+    border-color: t.$info-fill-border;
+    color: #fff;
+
+    &:hover:not(:disabled) {
+      background: #335f8d;
+    }
+  }
+
+  &.amber {
+    background: t.$amber;
+    border-color: t.$amber-border;
+    color: t.$text; // amber is light — dark text, not white
+
+    &:hover:not(:disabled) {
+      background: #f6c659;
+    }
   }
 
   &:disabled {
@@ -82,8 +118,8 @@ body {
 }
 
 .go {
-  padding: 0 12px;
-  height: 22px;
+  padding: 0 8px;
+  height: 20px;
   border: 1px solid t.$amber-border;
   background: t.$amber;
   color: t.$text;

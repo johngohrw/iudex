@@ -96,38 +96,42 @@ export default function MergeEditor({
   };
 
   const markersLeft = MARKER.test(result);
+  // The quick-picks rewrite the *remaining* conflict blocks, so they only do
+  // anything while markers are present — hide them once the result is marker-free
+  // (after a full pick or hand-clearing the last marker). Revert restores the
+  // original conflicted content and is offered whenever the result has changed.
+  const dirty = cf != null && result !== cf.merged;
+  const revert = () => cf && setResult(cf.merged);
 
   return (
     <div className={s.merge}>
       <div className={s.head}>
         <span className={s.path}>{path}</span>
         <div className={s.actions}>
-          <button
-            className="esc"
-            disabled={!cf}
-            onClick={() => setResult((r) => pickHunks(r, "theirs"))}
-          >
-            Use main
-          </button>
-          <button
-            className="esc"
-            disabled={!cf}
-            onClick={() => setResult((r) => pickHunks(r, "ours"))}
-          >
-            Use this ticket
-          </button>
-          <button
-            className="esc"
-            disabled={!cf}
-            onClick={() => setResult((r) => pickHunks(r, "both"))}
-          >
-            Use both
-          </button>
+          {markersLeft && (
+            <>
+              <button className="esc danger" onClick={() => setResult((r) => pickHunks(r, "theirs"))}>
+                Use main
+              </button>
+              <button className="esc success" onClick={() => setResult((r) => pickHunks(r, "ours"))}>
+                Use this ticket
+              </button>
+              <button className="esc info" onClick={() => setResult((r) => pickHunks(r, "both"))}>
+                Use both
+              </button>
+              <span className={s.sep} aria-hidden />
+            </>
+          )}
+          {dirty && (
+            <button className="esc amber" onClick={revert} title="restore the original conflict markers">
+              Revert
+            </button>
+          )}
           <button className="esc" onClick={onCancel}>
             Cancel
           </button>
           <button
-            className="go"
+            className="esc success"
             disabled={saving || busy || !cf || markersLeft}
             title={markersLeft ? "remove the conflict markers first" : "stage this resolution"}
             onClick={markResolved}

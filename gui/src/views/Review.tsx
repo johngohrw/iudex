@@ -538,10 +538,10 @@ function ConflictsTab({
         </span>
       </div>
       <div className={s.gateActions}>
-        <button className="go" disabled={busy} onClick={onResolveAgent}>
+        <button className="esc info" disabled={busy} onClick={onResolveAgent}>
           Resolve with agent
         </button>
-        <button className="esc" disabled={busy} onClick={onBegin}>
+        <button className="esc amber" disabled={busy} onClick={onBegin}>
           Resolve manually
         </button>
         <button className="esc" disabled={busy} onClick={onShellWorktree}>

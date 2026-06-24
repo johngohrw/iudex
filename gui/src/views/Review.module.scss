@@ -256,12 +256,12 @@
   color: #fff;
 }
 .approve {
-  background: t.$amber;
-  border-color: t.$amber-border;
-  color: t.$text;
+  background: t.$success-fill;
+  border-color: t.$success-fill-border;
+  color: #fff;
 
   &:hover:not(:disabled) {
-    background: #f6c659;
+    background: #336f35;
   }
 }
 
