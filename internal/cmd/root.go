@@ -26,7 +26,12 @@ func newRootCmd() *cobra.Command {
 			"pipeline using git worktrees and an append-only event log. Every transition is an\n" +
 			"explicit command; there is no background process.",
 		SilenceUsage: true,
+		Version:      versionString(),
 	}
+	root.SetVersionTemplate("iudex {{.Version}}\n")
+	// Pre-register the version flag with a -v shorthand; cobra still auto-prints
+	// it (its own default flag has no shorthand).
+	root.Flags().BoolP("version", "v", false, "print the iudex version")
 	root.AddCommand(
 		newInitCmd(),
 		newNextTicketIDCmd(),

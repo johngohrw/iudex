@@ -115,6 +115,19 @@ func wantState(t *testing.T, ws, id, want string) {
 	}
 }
 
+// TestCLIVersion locks in the cobra wiring that gives --version a -v shorthand
+// (the GUI's check_iudex shells `iudex --version` to confirm the CLI is present).
+// No workspace needed: the flag is handled on the root command before any
+// subcommand runs.
+func TestCLIVersion(t *testing.T) {
+	for _, flag := range []string{"--version", "-v"} {
+		out := mustRun(t, t.TempDir(), flag)
+		if !strings.HasPrefix(out, "iudex ") || strings.TrimSpace(out) == "iudex" {
+			t.Errorf("iudex %s = %q, want a non-empty \"iudex <version>\" line", flag, out)
+		}
+	}
+}
+
 func TestCLILifecycleToPendingQA(t *testing.T) {
 	ws := newWorkspace(t)
 	author(t, ws, "t1")
