@@ -30,7 +30,10 @@ import s from "./Agents.module.scss";
 function StatusDot({ status }: { status: AgentStatus }) {
   return (
     <>
-      <span className={s.statusDot} style={{ background: agentStatusColor(status) }} />
+      <span
+        className={s.statusDot}
+        style={{ background: agentStatusColor(status) }}
+      />
       {STATUS_LABEL[status]}
     </>
   );
@@ -85,10 +88,10 @@ export default function Agents({
   const [selName, setSelName] = useState<string | null>(null);
   // Which tab the detail panel opens on for the next selection ("ticket" by
   // default; a cross-view "watch" can seed "console").
-  const [seedTab, setSeedTab] = useState<Tab>("ticket");
+  const [seedTab, setSeedTab] = useState<Tab>("console");
   const selected = agents.find((a) => a.name === selName) ?? null;
 
-  const select = (name: string, tab: Tab = "ticket") => {
+  const select = (name: string, tab: Tab = "console") => {
     setSelName(name);
     setSeedTab(tab);
   };
@@ -102,7 +105,7 @@ export default function Agents({
   // opening the requested tab (e.g. Review "watch" → the resolver's console).
   useEffect(() => {
     if (focusAgent && agents.some((a) => a.name === focusAgent)) {
-      select(focusAgent, (focusTab as Tab) || "ticket");
+      select(focusAgent, (focusTab as Tab) || "console");
       onFocusHandled?.();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -140,69 +143,71 @@ export default function Agents({
       </ViewHeader>
       <div className={s.root}>
         <aside className={s.rail}>
-        <div className={s.list}>
-          {agents.length === 0 && (
-            <div className={`${s.empty} muted`}>
-              No agents running. Activate a ticket to launch one.
+          <div className={s.list}>
+            {agents.length === 0 && (
+              <div className={`${s.empty} muted`}>
+                No agents running. Activate a ticket to launch one.
+              </div>
+            )}
+            {agents.map((a) => {
+              const w = worktreeOf(a);
+              const status = statuses[a.name] ?? "idle";
+              return (
+                <button
+                  key={a.name}
+                  className={`${s.card} ${a.name === selName ? s.active : ""}`}
+                  onClick={() => select(a.name)}
+                >
+                  <span className={s.cardTop}>
+                    <span className={s.cardId}>{a.ticket ?? "agent"}</span>
+                    <span className={s.cardTitle}>
+                      {(w && titles[w]) || ""}
+                    </span>
+                  </span>
+                  <span className={s.cardBot}>
+                    <RoleChip role={a.role ?? "agent"} />
+                    <span className={s.cardStatus}>
+                      <StatusDot status={status} />
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className={s.foot}>
+            <span className="muted">
+              {agents.length} agent{agents.length === 1 ? "" : "s"}
+            </span>
+            <Button variant="quiet" size="sm" onClick={clearFinished}>
+              clear all finished
+            </Button>
+          </div>
+        </aside>
+
+        <div className={s.main}>
+          {selected ? (
+            <AgentDetail
+              key={selected.name}
+              agent={selected}
+              ws={ws}
+              root={root}
+              initialTab={seedTab}
+              status={statuses[selected.name] ?? "idle"}
+              title={
+                (worktreeOf(selected) && titles[worktreeOf(selected)!]) || ""
+              }
+              worktree={worktreeOf(selected)}
+              onDismiss={() => setSelName(null)}
+              onKill={async () => {
+                await kill(selected.name);
+                setSelName(null);
+              }}
+            />
+          ) : (
+            <div className={`${s.detailEmpty} muted`}>
+              {agents.length > 0 ? "Select an agent." : ""}
             </div>
           )}
-          {agents.map((a) => {
-            const w = worktreeOf(a);
-            const status = statuses[a.name] ?? "idle";
-            return (
-              <button
-                key={a.name}
-                className={`${s.card} ${a.name === selName ? s.active : ""}`}
-                onClick={() => select(a.name)}
-              >
-                <span className={s.cardTop}>
-                  <span className={s.cardId}>{a.ticket ?? "agent"}</span>
-                  <span className={s.cardTitle}>{(w && titles[w]) || ""}</span>
-                </span>
-                <span className={s.cardBot}>
-                  <RoleChip role={a.role ?? "agent"} />
-                  <span className={s.cardStatus}>
-                    <StatusDot status={status} />
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        <div className={s.foot}>
-          <span className="muted">
-            {agents.length} agent{agents.length === 1 ? "" : "s"}
-          </span>
-          <Button variant="quiet" size="sm" onClick={clearFinished}>
-            clear all finished
-          </Button>
-        </div>
-      </aside>
-
-      <div className={s.main}>
-        {selected ? (
-          <AgentDetail
-            key={selected.name}
-            agent={selected}
-            ws={ws}
-            root={root}
-            initialTab={seedTab}
-            status={statuses[selected.name] ?? "idle"}
-            title={
-              (worktreeOf(selected) && titles[worktreeOf(selected)!]) || ""
-            }
-            worktree={worktreeOf(selected)}
-            onDismiss={() => setSelName(null)}
-            onKill={async () => {
-              await kill(selected.name);
-              setSelName(null);
-            }}
-          />
-        ) : (
-          <div className={`${s.detailEmpty} muted`}>
-            {agents.length > 0 ? "Select an agent." : ""}
-          </div>
-        )}
         </div>
       </div>
     </div>
@@ -276,13 +281,13 @@ function AgentDetail({
       </header>
 
       <nav className={s.tabs}>
-        {(["ticket", "console", "worktree"] as Tab[]).map((t) => (
+        {(["console", "ticket", "worktree"] as Tab[]).map((t) => (
           <button
             key={t}
             className={`${s.tab} ${tab === t ? s.active : ""}`}
             onClick={() => setTab(t)}
           >
-            {t}
+            {t.slice(0, 1).toLocaleUpperCase() + t.slice(1)}
           </button>
         ))}
       </nav>
@@ -294,7 +299,9 @@ function AgentDetail({
           className={s.console}
           style={{ display: tab === "console" ? "block" : "none" }}
         >
-          {consoleSeen && <XtermPane session={agent.name} active={tab === "console"} />}
+          {consoleSeen && (
+            <XtermPane session={agent.name} active={tab === "console"} />
+          )}
         </div>
         {tab === "worktree" &&
           (worktree ? (
@@ -413,9 +420,7 @@ function WorktreePanel({
           variant="quiet"
           size="sm"
           onClick={() =>
-            api.openInEditor(`${worktree}/${selFile}`).catch(
-              () => {},
-            )
+            api.openInEditor(`${worktree}/${selFile}`).catch(() => {})
           }
         >
           Open in editor
