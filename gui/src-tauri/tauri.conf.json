@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "gui",
+  "productName": "iudex",
   "version": "0.1.0",
-  "identifier": "com.rengwu.gui",
+  "identifier": "com.rengwu.iudex",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "gui",
+        "title": "iudex",
         "width": 1280,
         "height": 867
       }
