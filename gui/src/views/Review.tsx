@@ -9,6 +9,7 @@ import type {
   Ticket,
   Workspace,
 } from "../types";
+import { VIEWS } from "../types";
 import { useRailStatus, useReview } from "../lib/review";
 import { useSessions } from "../lib/sessions";
 import ChangedFilesDiff from "../components/ChangedFilesDiff";
@@ -228,7 +229,7 @@ export default function Review({
   if (pending.length === 0)
     return (
       <div className={s.view}>
-        <ViewHeader dot="#836ddd" title="Review" subtitle="deep review · pending-human-qa" />
+        <ViewHeader dot={VIEWS.review.dot} title="Review" subtitle="deep review · pending-human-qa" />
         <div className={s.empty}>Nothing awaiting human review.</div>
       </div>
     );
@@ -240,7 +241,7 @@ export default function Review({
 
   return (
     <div className={s.view}>
-      <ViewHeader dot="#836ddd" title="Review" subtitle="deep review · pending-human-qa" />
+      <ViewHeader dot={VIEWS.review.dot} title="Review" subtitle="deep review · pending-human-qa" />
       <div className={s.root}>
       <aside className={s.rail}>
         <div className={s.railHead}>PENDING HUMAN QA</div>

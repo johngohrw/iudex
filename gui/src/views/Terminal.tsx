@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import * as api from "../lib/api";
 import { useSessions, sessionTitle, sessionLabel } from "../lib/sessions";
-import type { Session } from "../types";
+import { VIEWS, type Session } from "../types";
 import XtermPane from "./XtermPane";
 import ViewHeader from "../components/ViewHeader";
 import Button from "../components/Button";
@@ -88,9 +88,9 @@ export default function Terminal({
       <div className="stub">
         <h2>Terminal</h2>
         <p>
-          tmux isn't on PATH. The terminal pool is tmux-backed (so agent sessions
-          survive a GUI restart). Install it with <code>brew install tmux</code>{" "}
-          and reopen this view.
+          tmux isn't on PATH. The terminal pool is tmux-backed (so agent
+          sessions survive a GUI restart). Install it with{" "}
+          <code>brew install tmux</code> and reopen this view.
         </p>
       </div>
     );
@@ -98,7 +98,7 @@ export default function Terminal({
 
   return (
     <div className={s.term}>
-      <ViewHeader dot="#72f6aa" title="Terminal">
+      <ViewHeader dot={VIEWS.terminal.dot} title="Terminal">
         <Button variant="secondary" size="sm" onClick={newShell}>
           + New Shell
         </Button>
@@ -111,7 +111,10 @@ export default function Terminal({
             className={`${s.tab} ${activeTab === name ? s.active : ""}`}
             onClick={() => setActiveTab(name)}
           >
-            <span className={s.tabDot} style={{ background: sessionDot(sessions, name) }} />
+            <span
+              className={s.tabDot}
+              style={{ background: sessionDot(sessions, name) }}
+            />
             <span>{tabLabel(sessions, name)}</span>
             <button
               className={s.x}

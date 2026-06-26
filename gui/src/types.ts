@@ -180,17 +180,23 @@ export type View =
   | "archive"
   | "settings";
 
-// Per-view status-dot color (DESIGN.md §4).
-export const VIEWS: { id: View; label: string; dot: string }[] = [
-  { id: "dashboard", label: "Dashboard", dot: "#f4bc41" },
-  { id: "terminal", label: "Terminal", dot: "#72f6aa" },
-  { id: "tickets", label: "Tickets", dot: "#5bc7d8" },
-  { id: "agents", label: "Agents", dot: "#5ccf5c" },
-  { id: "worktrees", label: "Worktrees", dot: "#9ea0e0" },
-  { id: "review", label: "Review", dot: "#836ddd" },
-  { id: "archive", label: "Archive", dot: "#7fb3a8" },
-  { id: "settings", label: "Settings", dot: "#8a8f99" },
-];
+export type ViewConfig = { id: View; label: string; dot: string };
+
+// Per-view config — id, nav label, and status-dot color (DESIGN.md §4). Keyed by
+// view id so callers can read a view's dot directly (VIEWS.agents.dot), making
+// this the single source for those colors (ViewHeaders read from here rather
+// than hardcoding hex). Record<View, …> is exhaustive: a new View won't compile
+// until it has an entry. Key order is the rail display order (see RAIL_* below).
+export const VIEWS: Record<View, ViewConfig> = {
+  dashboard: { id: "dashboard", label: "Dashboard", dot: "#f4bc41" },
+  terminal: { id: "terminal", label: "Terminal", dot: "#343fd5" },
+  tickets: { id: "tickets", label: "Tickets", dot: "#5bc7d8" },
+  agents: { id: "agents", label: "Agents", dot: "#5ccf5c" },
+  worktrees: { id: "worktrees", label: "Worktrees", dot: "#9ea0e0" },
+  review: { id: "review", label: "Review", dot: "#836ddd" },
+  archive: { id: "archive", label: "Archive", dot: "#7fb3a8" },
+  settings: { id: "settings", label: "Settings", dot: "#8a8f99" },
+};
 
 // Side-channel views, pinned to the bottom of the rail (above the pipeline) —
 // useful but not part of the core queue→implement→QA→review→merge workflow.
@@ -199,5 +205,5 @@ const SECONDARY_IDS: View[] = ["worktrees", "archive", "settings"];
 
 // The left-nav rail, split into a top (core workflow) and bottom (secondary)
 // group.
-export const RAIL_VIEWS = VIEWS.filter((v) => !SECONDARY_IDS.includes(v.id));
-export const RAIL_SECONDARY = VIEWS.filter((v) => SECONDARY_IDS.includes(v.id));
+export const RAIL_VIEWS = Object.values(VIEWS).filter((v) => !SECONDARY_IDS.includes(v.id));
+export const RAIL_SECONDARY = Object.values(VIEWS).filter((v) => SECONDARY_IDS.includes(v.id));

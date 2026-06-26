@@ -15,6 +15,7 @@ import type {
   Ticket,
   Workspace,
 } from "../types";
+import { VIEWS } from "../types";
 import { useTicketDocs } from "../lib/tickets";
 import ChangedFilesDiff from "../components/ChangedFilesDiff";
 import Badge from "../components/Badge";
@@ -132,7 +133,7 @@ export default function Agents({
 
   return (
     <div className={s.view}>
-      <ViewHeader dot="#5ccf5c" title="Agents">
+      <ViewHeader dot={VIEWS.agents.dot} title="Agents">
         <span className={s.headerCount}>
           {agents.length} agent{agents.length === 1 ? "" : "s"}
         </span>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import * as api from "../lib/api";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import type { AgentCmd, Config } from "../types";
+import { VIEWS, type AgentCmd, type Config } from "../types";
 import ViewHeader from "../components/ViewHeader";
 import s from "./Settings.module.scss";
 
@@ -81,7 +81,7 @@ export default function Settings({
 
   return (
     <div className={s.settings}>
-      <ViewHeader dot="#8a8f99" title="Settings" subtitle={SUBTITLES[tab]} />
+      <ViewHeader dot={VIEWS.settings.dot} title="Settings" subtitle={SUBTITLES[tab]} />
       <div className={s.row}>
         <div className={s.sidebar}>
           {onClose && (

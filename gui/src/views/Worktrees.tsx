@@ -1,6 +1,6 @@
 import { Fragment, Suspense, lazy, useEffect, useState } from "react";
 import * as api from "../lib/api";
-import type { FileChange, FileDiff, Workspace, Worktree } from "../types";
+import { VIEWS, type FileChange, type FileDiff, type Workspace, type Worktree } from "../types";
 import { useWorktrees } from "../lib/worktrees";
 import Badge from "../components/Badge";
 import ViewHeader from "../components/ViewHeader";
@@ -126,14 +126,14 @@ export default function Worktrees({
   if (worktrees.length === 0)
     return (
       <div className={s.wrap}>
-        <ViewHeader dot="#9ea0e0" title="Worktrees" subtitle="read-only inspection · two-dot vs main" />
+        <ViewHeader dot={VIEWS.worktrees.dot} title="Worktrees" subtitle="read-only inspection · two-dot vs main" />
         <div className={s.empty}>No active worktrees. Activate a ticket to create one.</div>
       </div>
     );
 
   return (
     <div className={s.wrap}>
-      <ViewHeader dot="#9ea0e0" title="Worktrees" subtitle="read-only inspection · two-dot vs main">
+      <ViewHeader dot={VIEWS.worktrees.dot} title="Worktrees" subtitle="read-only inspection · two-dot vs main">
         {headerActions}
       </ViewHeader>
       <div className={s.root}>
