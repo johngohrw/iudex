@@ -191,8 +191,8 @@ Shared lazy-loaded read-only Monaco diff (inline/split toggle, `title` + `action
 | Diff via tmux read-only `-r` attach for peeks       | Peeks were dropped; the console is a single interactive PTY attach (avoids tmux's smallest-client resize war).                                                                                         |
 | Merge conflicts **out of scope** (resolve manually) | **In-GUI agent-assisted resolution** + an editable merge editor were added — the agent triages (resolves trivial, flags ambiguous), a flagged conflict blocks Approve, the human-QA gate is unchanged. |
 | Worktrees three-dot diff                            | Worktrees uses **two-dot** (shows uncommitted edits); Review uses **three-dot** (what would merge).                                                                                                    |
-| Single `agent_command`                              | Unchanged — still single; multi-command deferred.                                                                                                                                                      |
-| Read path possibly needs `export --json` too        | Only `status --json` was needed; `export --json` never required. `blocks` field added to `status --json` for the ticket panel.                                                                         |
+| Single `agent_command`                              | Replaced by a **pool** (`agent_commands` + per-role `agent_roles`: impl/qa/resolve/idea). The GUI reads it via `iudex config --json` and resolves a role via `iudex agent-command <role>` — no Rust-side parsing or resolution. |
+| Read path possibly needs `export --json` too        | The read path is `status --json` + `config --json` + `agent-command` (all CLI-sourced); `export --json` never required. `blocks` field added to `status --json` for the ticket panel.                  |
 
 **Accepted-as-is (deliberate):** agent spawning has zero guards (a stray double-click fires real billable `pi`); synthesized status can mislead (it's a heuristic); dead sessions accumulate (manual clear-finished); binary/huge files render blank in the diff.
 

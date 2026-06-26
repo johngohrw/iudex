@@ -65,12 +65,19 @@ React UI ──reads──> iudex status --json ──┐
 ```
 
 - **Backend** (`src-tauri/src/`): `lib.rs` holds the read/write seam (workspace
-  discovery, `iudex_status`, `run_iudex`, workspace `init`, config/prompt and git
-  read commands, the events watcher); `tmux.rs` holds the session pool + PTY
-  bridge. Git reads (worktree diffs, merge-preflight) shell `git -C <dir>`
-  directly — plain plumbing, not state-machine logic, so they stay out of the CLI.
-- **Frontend** (`src/`): `App.tsx` (workspace bar + nav + view router + doorbell),
-  `views/` (one per view + the shared `DiffViewer`), `lib/` (poll/derive hooks),
-  `types.ts` (mirrors the `status --json` contract).
-- **Invariant:** writes go through `iudex`, reads through `iudex … --json`,
-  `events.jsonl` is a doorbell — so the GUI and CLI can never diverge.
+  discovery, `iudex_status`, `run_iudex`, workspace `init`, config + agent-command
+  reads via `iudex config --json` / `iudex agent-command`, prompt + git read
+  commands, the events watcher); `tmux.rs` holds the session pool + PTY bridge.
+  Config parsing and role→command resolution are **not** reimplemented here — they
+  shell the CLI, so the schema/migration/resolution rule stay single-sourced.
+  Git reads (worktree diffs, merge-preflight) shell `git -C <dir>` directly —
+  plain plumbing, not state-machine logic, so they stay out of the CLI.
+- **Frontend** (`src/`): `App.tsx` (a thin shell — workspace bar + nav + view
+  router + chrome) over focused hooks in `lib/` (`api.ts` = the typed wrapper for
+  **every** Tauri command, `workspace`/`automation`/`sessions`/`iudexCheck`/
+  `viewKeepAlive` + the per-view poll/derive hooks); `views/` (one per view + the
+  shared `DiffViewer`); `types.ts` (mirrors the `status --json`/`config --json`
+  contracts).
+- **Invariant:** every backend call goes through `lib/api.ts`; writes go through
+  `iudex`, reads through `iudex … --json`, `events.jsonl` is a doorbell — so the
+  GUI and CLI can never diverge.

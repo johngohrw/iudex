@@ -41,7 +41,7 @@ Requires Go 1.22+. Dependencies are just `github.com/spf13/cobra` and `gopkg.in/
 ```
 <your-project>/                 # existing git repo = canonical "main" worktree
 ├── .iudex/                      # all iudex state (gitignored as a whole)
-│   ├── config.yml               # main_branch, max_active, qa_reject_limit, agent_command,
+│   ├── config.yml               # main_branch, max_active, qa_reject_limit, agent_commands, agent_roles,
 │   │                            #   merge_strategy, merge_message_template, branch_prefix
 │   ├── prompts/
 │   │   ├── impl.md              # injected into impl spawn commands
@@ -125,7 +125,7 @@ failed --retry-------------------> active  [counter reset]
 
 ---
 
-## CLI commands (12)
+## CLI commands (14)
 
 | Command                               | Description                                                                                                                                                                                                                         |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -141,6 +141,8 @@ failed --retry-------------------> active  [counter reset]
 | `iudex remove <id>`                   | Abandon from any non-terminal state → removed                                                                                                                                                                                       |
 | `iudex review <id>`                   | Read-only: print brief, log, diff, review, state, next actions                                                                                                                                                                      |
 | `iudex status [--all] [--json]`       | Tickets grouped by state; queued annotated ready/blocked; done/removed hidden unless `--all`. `--json` emits a machine-readable object (`{mainBranch,maxActive,qaRejectLimit,tickets[]}`, always all tickets) — the GUI's read path |
+| `iudex config [--json]`               | Print the workspace config; `--json` emits the post-migrate config (scalars + the agent pool/roles) — a GUI read path alongside `status --json`                                                                                      |
+| `iudex agent-command <role>`          | Print the agent command resolved for a role (opaque key → pool entry → default); errors on an empty pool. Single-sources the role→command rule for non-ticket spawns (the GUI's resolve/idea agents)                                |
 
 Worktree-scoped commands (`finish`, `qa`, `spawn`) infer the ticket from the current directory when run inside a worktree; an explicit id always overrides.
 
@@ -158,7 +160,7 @@ iudex/
 └── internal/
     ├── workspace/             # discovery (walk up for .iudex/config.yml), Config, path helpers, TicketFromCwd
     ├── events/                # append-only events.jsonl: Event, Append (O_APPEND), ReadAll
-    ├── ticket/                # state machine: States/Triggers, Status, Derive (replay), DepsReady, MaxID, ParseID
+    ├── ticket/                # state machine: States/Triggers, transition table + Apply, Status, Derive (replay), DepsReady, MaxID, ParseID
     ├── git/                   # all git ops via exec.Command
     ├── archive/               # copy .task/ + diff.patch + meta.json into archive/<id>/
     └── cmd/                    # cobra command tree, one file per command; common.go = shared helpers
@@ -168,10 +170,10 @@ iudex/
 
 - **`workspace`** — `Find` walks up from cwd for `.iudex/config.yml` (works from inside a worktree, like git finds `.git`). `Config`/`LoadConfig`, path helpers, and `TicketFromCwd` (reverse-maps a cwd to its ticket).
 - **`events`** — `Event{ID,Ticket,From,To,TS,Trigger,Deps,Reason}`. `Append` fills a UUID + RFC3339 timestamp and writes one JSON line with `O_APPEND` (concurrency-safe). `ReadAll` returns all events, skipping malformed lines.
-- **`ticket`** — `State`/`Trigger` constants, `Status{Ticket,State,Deps,QARejects}`. `Derive` replays events into per-ticket status (state = last `To`; deps from the queue event; counter increments on `qa-reject`, resets on `retry`). Plus `DepsReady`, `MaxID`, `ParseID`/`FormatID`, `IsTerminal`, `HasWorktree`.
+- **`ticket`** — `State`/`Trigger` constants, `Status{Ticket,State,Deps,QARejects}`. `Derive` replays events into per-ticket status (state = last `To`; deps from the queue event; counter increments on `qa-reject`, resets on `retry`). The state machine's *transitions* live here too: a declarative `transitions` table + `Apply(status, trigger, qaRejectLimit) (State, error)` is the single source of which transitions are legal and where they lead (incl. the qa-reject ladder and the remove-from-any-non-terminal wildcard), returning an `IllegalTransition` error otherwise; commands call it via `wsContext.transition` rather than re-checking state inline. Plus `DepsReady`, `MaxID`, `ParseID`/`FormatID`, `IsTerminal`, `HasWorktree`.
 - **`git`** — `exec.Command` wrappers: `IsRepo`, `Init`, `CurrentBranch`, `HasCommits`, `CommitAll`, `CreateWorktree`, `RemoveWorktree`, `IsClean`, `WIPCommit`, `Diff` (three-dot vs base), `Merge` (no-ff/squash, aborts + restores on failure), `EnsureExclude` (writes `.task/` to the shared exclude).
 - **`archive`** — `Archive` copies `brief.md`/`log.md`/`review.md` from `.task/`, writes `diff.patch` and `meta.json` (outcome, timestamps, merge commit, qa-reject count, full event history) into `archive/<id>/`.
-- **`cmd`** — cobra commands, one file per command. `common.go`: `loadContext` (workspace + config + events + derived statuses), `resolveTicket` (explicit or cwd-inferred), `spawnCommand`.
+- **`cmd`** — cobra commands, one file per command. `common.go`: `loadContext` (workspace + config + events + derived statuses), `resolveTicket` (explicit or cwd-inferred), `spawnCommand`, and `wsContext.transition` (existence check + `ticket.Apply`, the thin adapter every transition command routes through).
 
 ---
 
@@ -199,7 +201,8 @@ iudex/
 | `main_branch`            | Canonical merge target (set to the repo's current branch at init)   |
 | `max_active`             | Cap on tickets in the `active` state (`0` = unlimited)              |
 | `qa_reject_limit`        | QA rejections before a ticket becomes `failed` (`<= 0` = unlimited) |
-| `agent_command`          | Binary used to build spawn commands (e.g. `claude` or `pi`)         |
+| `agent_commands`         | Pool of named agent commands (`{name,command,default}`); one is `default: true`. A legacy single `agent_command` is folded into the pool on load |
+| `agent_roles`            | Maps a role (`impl`/`qa`/`resolve`/`idea`/…) to a pool entry's name; unmapped roles use the default. Resolved by `AgentCommandForRole` (CLI `spawn`/`agent-command`) |
 | `merge_strategy`         | `no-ff` (default) or `squash`                                       |
 | `merge_message_template` | Merge commit message; `{{.Ticket}}` is substituted                  |
 | `branch_prefix`          | Per-ticket branch prefix (e.g. `work/`)                             |
@@ -212,7 +215,7 @@ iudex/
 go test ./...
 ```
 
-- `internal/ticket`, `internal/events` — fast unit tests (replay rules, the qa-reject counter, deps, append/read).
+- `internal/ticket`, `internal/events`, `internal/workspace` — fast unit tests (replay rules + the `Apply` transition table; the qa-reject counter; deps; append/read; the agent role→command resolution + legacy migration).
 - `main_test.go` — CLI-seam tests: builds the binary once in `TestMain` with a **hermetic git config** (pinned `init.defaultBranch` + identity via `GIT_CONFIG_GLOBAL`/`GIT_AUTHOR_*`), then drives the pipeline in temp repos and asserts state after each command. Covers the full happy path to `done` (merge, archive, worktree removal), dep-blocking, `max_active`, the qa-reject ladder to `failed`, `retry`, `human-qa reject` feedback, the dirty/off-main approve guards, and `remove`.
 
 ---
@@ -223,7 +226,7 @@ A native **Tauri desktop client** that drives this CLI the way a git client driv
 
 **The core invariant:** the GUI holds **no authoritative state**. It **reads** derived truth via `iudex status --json`, **writes** by shelling every mutation through the `iudex` binary, and watches `.iudex/events.jsonl` as a _doorbell_ (re-reads on any change). It never reimplements `Derive` (the state machine stays single-sourced in the CLI), so GUI and CLI cannot diverge. It does own the one thing the CLI won't — **agent process supervision** — via a tmux session pool.
 
-- **The one upstream change it required** is `iudex status --json` (already landed). Git reads it needs (worktree diffs, the merge-preflight via `git merge-tree`) shell `git -C <dir>` directly from the GUI's Rust backend — plain plumbing, not state-machine logic, so they deliberately stay out of the CLI.
+- **Upstream read-path commands it binds to:** `iudex status --json` (tickets), `iudex config --json` (config + agent pool/roles), and `iudex agent-command <role>` (role→command resolution for its resolve/idea spawns). The GUI shells these rather than re-parsing `.iudex/` — so the schema, the legacy-`agent_command` migration, and the resolution rule stay single-sourced in the CLI (it previously kept Rust copies; those are gone). Git reads it needs (worktree diffs, the merge-preflight via `git merge-tree`) shell `git -C <dir>` directly from the GUI's Rust backend — plain plumbing, not state-machine logic, so they deliberately stay out of the CLI.
 - **Seven views:** Dashboard, Terminal, Tickets, Agents, Worktrees, Review (preflighted approve & merge), Settings.
 - **Status:** built on branch `feat/gui-read-path` (off `main`, not yet merged). The GUI evolves independently; treat `gui/` changes as scoped to that project.
 
@@ -233,7 +236,7 @@ A native **Tauri desktop client** that drives this CLI the way a git client driv
 
 - **Automation** — auto-activation of ready tickets, any watch loop, or concurrency policy beyond the manual `max_active` cap. v1 is deliberately command-driven; automation is future work.
 - **Merge-conflict tooling** — a conflicting `human-qa approve` aborts and is resolved manually; iudex does not assist.
-- **Direct unit tests** for `workspace`, `git`, and `archive` (currently exercised only transitively via the CLI seam).
+- **Direct unit tests** for `git` and `archive` (currently exercised only transitively via the CLI seam; `workspace` now has its own tests).
 - **README** may lag the implementation.
 
 ---
