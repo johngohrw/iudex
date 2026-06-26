@@ -158,6 +158,7 @@ export interface ArchiveEntry {
   archivedAt: string;
   mergeCommit: string;
   qaRejects: number;
+  deps: string[]; // prerequisite ids, recovered from the archived queue event
 }
 
 // The archived docs + final diff for one ticket (from `read_archive`).

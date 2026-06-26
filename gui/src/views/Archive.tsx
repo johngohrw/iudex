@@ -1,17 +1,48 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type { ArchiveDocs, ArchiveEntry } from "../types";
+import { stateDot } from "../lib/badges";
+import Badge from "../components/Badge";
 import TabSwitcher from "../components/TabSwitcher";
 import DiffPatch from "../components/DiffPatch";
 import s from "./Archive.module.scss";
 
 type Tab = "tickets" | "review";
 
+// The archive list with live refresh: re-fetch list_archives whenever
+// events.jsonl changes (the same doorbell the rest of the app watches), so a
+// ticket merged or removed elsewhere shows up here without leaving the view.
+function useArchives(root: string): { entries: ArchiveEntry[]; error: string | null } {
+  const [entries, setEntries] = useState<ArchiveEntry[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const fetchIt = () =>
+      invoke<ArchiveEntry[]>("list_archives", { root })
+        .then((all) => {
+          if (!alive) return;
+          setEntries(all);
+          setError(null);
+        })
+        .catch((e) => alive && setError(String(e)));
+    fetchIt();
+    const un = listen("events-changed", fetchIt);
+    return () => {
+      alive = false;
+      un.then((f) => f());
+    };
+  }, [root]);
+
+  return { entries, error };
+}
+
 // A record of completed work the live views drop once it leaves the pipeline.
-// Two tabs: Tickets (placeholder for now) and Review (merged reviews, read from
-// .iudex/archive/<id>/ via list_archives/read_archive). Read-only.
+// Two tabs: Tickets (the dense archive table, read-only) and Review (merged
+// reviews, read from .iudex/archive/<id>/ via list_archives/read_archive).
 export default function Archive({ root }: { root: string }) {
-  const [tab, setTab] = useState<Tab>("review");
+  const [tab, setTab] = useState<Tab>("tickets");
 
   return (
     <div className={s.view}>
@@ -28,8 +59,200 @@ export default function Archive({ root }: { root: string }) {
       {tab === "review" ? (
         <ArchiveReview root={root} />
       ) : (
-        <div className={s.blank}>Archived tickets — coming soon.</div>
+        <ArchiveTickets root={root} />
       )}
+    </div>
+  );
+}
+
+// Every ticket that left the pipeline — merged ("done") and abandoned
+// ("removed") — in the same dense table as the live Tickets view, but read-only
+// (no action column, no detail panel). The full record lives in the Review tab.
+function ArchiveTickets({ root }: { root: string }) {
+  const { entries, error } = useArchives(root);
+  const [selId, setSelId] = useState<string | null>(null);
+
+  const sel = selId ? (entries.find((e) => e.id === selId) ?? null) : null;
+
+  if (error) return <div className="error">{error}</div>;
+  if (entries.length === 0)
+    return <div className={s.empty}>No archived tickets yet.</div>;
+
+  return (
+    <div className={s.ticketsBody}>
+      <div className={s.ticketsScroll}>
+        <div className={s.thead}>
+          <div />
+          <div>ID</div>
+          <div>TITLE</div>
+          <div>OUTCOME</div>
+          <div className={s.thCenter}>QA</div>
+          <div>MERGE</div>
+          <div>ARCHIVED</div>
+        </div>
+        {entries.map((e, i) => {
+          const on = e.id === selId;
+          return (
+            <div
+              key={e.id}
+              className={s.row}
+              onClick={() => setSelId(on ? null : e.id)}
+              style={{
+                background: on ? "#1f2e90" : i % 2 ? "#969696" : "#9c9c9c",
+                color: on ? "#fff" : undefined,
+              }}
+            >
+              <div className={s.rowDot}>
+                <span className={s.dot} style={{ background: stateDot(e.outcome) }} />
+              </div>
+              <div className={s.cellId} style={on ? { color: "#fff" } : undefined}>
+                {e.id}
+              </div>
+              <div className={s.cellTitle} style={on ? { color: "#fff" } : undefined}>
+                {e.title || "—"}
+              </div>
+              <div>
+                <Badge kind="state" value={e.outcome} />
+              </div>
+              <div
+                className={`${s.cellQa} ${e.qaRejects > 0 ? s.cellQaHot : ""}`}
+                style={on ? { color: "#fff" } : undefined}
+              >
+                {e.qaRejects || ""}
+              </div>
+              <div className={s.cellMerge} style={on ? { color: "#cdd2ff" } : undefined}>
+                {e.mergeCommit ? e.mergeCommit.slice(0, 7) : "—"}
+              </div>
+              <div className={s.cellDate} style={on ? { color: "#cdd2ff" } : undefined}>
+                {fmtDate(e.archivedAt)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {sel && (
+        <div className={s.detailPane}>
+          <ArchiveTicketDetail root={root} entry={sel} onClose={() => setSelId(null)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+type ArchiveLogTab = "impl" | "qa";
+
+// Compact, read-only detail for one archived ticket — brief, info, and logs,
+// mirroring the live Tickets panel (TicketDetail). The full diff stays in the
+// Review tab, so it's deliberately not shown here.
+function ArchiveTicketDetail({
+  root,
+  entry,
+  onClose,
+}: {
+  root: string;
+  entry: ArchiveEntry;
+  onClose: () => void;
+}) {
+  const [docs, setDocs] = useState<ArchiveDocs | null>(null);
+  const [logTab, setLogTab] = useState<ArchiveLogTab>("impl");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setDocs(null);
+    invoke<ArchiveDocs>("read_archive", { root, id: entry.id })
+      .then((d) => alive && setDocs(d))
+      .catch((e) => alive && setError(String(e)));
+    return () => {
+      alive = false;
+    };
+  }, [entry.id, root]);
+
+  const log = logTab === "impl" ? docs?.log : docs?.review;
+
+  return (
+    <div className={s.detail}>
+      <div className={s.detailHead}>
+        <span className={s.detailId}>{entry.id}</span>
+        <Badge kind="state" value={entry.outcome} />
+        <span className={s.spacer} />
+        <button className={s.detailClose} onClick={onClose} title="close">
+          ✕
+        </button>
+      </div>
+
+      <div className={s.detailTitle}>
+        {entry.title || <span className={s.muted}>(no title)</span>}
+      </div>
+
+      {error && <div className="error">{error}</div>}
+
+      <div className={s.detailBody}>
+        <section className={s.section}>
+          <span className={s.sectionLabel}>brief</span>
+          {docs == null ? (
+            <span className={s.muted}>loading…</span>
+          ) : docs.brief.trim() ? (
+            <pre className={s.pre}>{docs.brief}</pre>
+          ) : (
+            <span className={s.muted}>(no brief)</span>
+          )}
+        </section>
+
+        <section className={s.section}>
+          <span className={s.sectionLabel}>info</span>
+          <div className={s.kvRows}>
+            {entry.deps.length > 0 && (
+              <div className={s.kv}>
+                <span className={s.kvKey}>deps</span>
+                <span className={s.kvVal}>{entry.deps.join(", ")}</span>
+              </div>
+            )}
+            {entry.mergeCommit && (
+              <div className={s.kv}>
+                <span className={s.kvKey}>merge</span>
+                <span className={s.kvVal}>{entry.mergeCommit.slice(0, 7)}</span>
+              </div>
+            )}
+            <div className={s.kv}>
+              <span className={s.kvKey}>qa rejects</span>
+              <span className={s.kvVal}>{entry.qaRejects}</span>
+            </div>
+            <div className={s.kv}>
+              <span className={s.kvKey}>archived</span>
+              <span className={s.kvVal}>{fmtDate(entry.archivedAt)}</span>
+            </div>
+          </div>
+        </section>
+
+        <section className={s.section}>
+          <span className={s.sectionLabel}>log</span>
+          <div className={s.logTabs}>
+            <button
+              className={`${s.logTab} ${logTab === "impl" ? s.logTabOn : ""}`}
+              onClick={() => setLogTab("impl")}
+            >
+              impl
+            </button>
+            <button
+              className={`${s.logTab} ${logTab === "qa" ? s.logTabOn : ""}`}
+              onClick={() => setLogTab("qa")}
+            >
+              qa
+            </button>
+          </div>
+          {docs == null ? (
+            <span className={s.muted}>loading…</span>
+          ) : log?.trim() ? (
+            <pre className={s.pre}>{log}</pre>
+          ) : (
+            <span className={s.muted}>
+              {logTab === "impl" ? "(no impl log)" : "(no qa review)"}
+            </span>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
@@ -37,22 +260,13 @@ export default function Archive({ root }: { root: string }) {
 type DocTab = "brief" | "log" | "review" | "diff";
 
 function ArchiveReview({ root }: { root: string }) {
-  const [entries, setEntries] = useState<ArchiveEntry[]>([]);
+  const { entries: all, error } = useArchives(root);
+  // Merged reviews only (outcome "done"); removed tickets live in the Tickets tab.
+  const entries = useMemo(() => all.filter((e) => e.outcome === "done"), [all]);
   const [selId, setSelId] = useState<string | null>(null);
   const [docs, setDocs] = useState<ArchiveDocs | null>(null);
   const [docTab, setDocTab] = useState<DocTab>("diff");
-  const [error, setError] = useState<string | null>(null);
-
-  // Merged reviews only (outcome "done"); "removed" tickets are a later tab.
-  useEffect(() => {
-    let alive = true;
-    invoke<ArchiveEntry[]>("list_archives", { root })
-      .then((all) => alive && setEntries(all.filter((e) => e.outcome === "done")))
-      .catch((e) => alive && setError(String(e)));
-    return () => {
-      alive = false;
-    };
-  }, [root]);
+  const [docErr, setDocErr] = useState<string | null>(null);
 
   // Default-select the most recent (list is newest-first).
   useEffect(() => {
@@ -71,7 +285,7 @@ function ArchiveReview({ root }: { root: string }) {
     let alive = true;
     invoke<ArchiveDocs>("read_archive", { root, id: selId })
       .then((d) => alive && setDocs(d))
-      .catch((e) => alive && setError(String(e)));
+      .catch((e) => alive && setDocErr(String(e)));
     return () => {
       alive = false;
     };
@@ -79,7 +293,7 @@ function ArchiveReview({ root }: { root: string }) {
 
   const sel = entries.find((e) => e.id === selId) ?? null;
 
-  if (error) return <div className="error">{error}</div>;
+  if (error || docErr) return <div className="error">{error || docErr}</div>;
   if (entries.length === 0)
     return <div className={s.empty}>No merged reviews yet.</div>;
 

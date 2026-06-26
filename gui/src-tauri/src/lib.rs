@@ -927,6 +927,9 @@ struct ArchiveEntry {
     merge_commit: String,
     #[serde(rename = "qaRejects")]
     qa_rejects: i64,
+    // Prerequisite ticket ids, recovered from this ticket's `queue` event in the
+    // embedded history below (deps live only in the event log, never in markdown).
+    deps: Vec<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -939,6 +942,19 @@ struct ArchiveMetaRaw {
     merge_commit: String,
     #[serde(default)]
     qa_rejects: i64,
+    // Full event history archived alongside the ticket; we scan it for the deps.
+    #[serde(default)]
+    events: Vec<MetaEvent>,
+}
+
+#[derive(serde::Deserialize)]
+struct MetaEvent {
+    #[serde(default)]
+    ticket: String,
+    #[serde(default)]
+    trigger: String,
+    #[serde(default)]
+    deps: Vec<String>,
 }
 
 /// List archived tickets, newest first. Reads each .iudex/archive/<id>/meta.json
@@ -965,13 +981,22 @@ fn list_archives(root: String) -> Result<Vec<ArchiveEntry>, String> {
             Ok(m) => m,
             Err(_) => continue,
         };
+        let id = entry.file_name().to_string_lossy().to_string();
+        // This ticket's prerequisites: the deps on its own `queue` event.
+        let deps = meta
+            .events
+            .iter()
+            .find(|e| e.ticket == id && e.trigger == "queue")
+            .map(|e| e.deps.clone())
+            .unwrap_or_default();
         out.push(ArchiveEntry {
-            id: entry.file_name().to_string_lossy().to_string(),
+            id,
             outcome: meta.outcome,
             title: archive_title(&path),
             archived_at: meta.archived_at,
             merge_commit: meta.merge_commit,
             qa_rejects: meta.qa_rejects,
+            deps,
         });
     }
     // archived_at is RFC3339 → lexical sort is chronological; newest first.
