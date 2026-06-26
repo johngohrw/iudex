@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import * as api from "./lib/api";
-import { listen } from "@tauri-apps/api/event";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { RAIL_VIEWS, RAIL_SECONDARY, type View, type Workspace } from "./types";
+import { useState, type ReactNode } from "react";
+import { RAIL_VIEWS, RAIL_SECONDARY, type View } from "./types";
 import { useSessions } from "./lib/sessions";
+import { useWorkspace } from "./lib/workspace";
+import { useIudexCheck } from "./lib/iudexCheck";
+import { useViewKeepAlive } from "./lib/viewKeepAlive";
+import { useAutomation } from "./lib/automation";
 import Dashboard from "./views/Dashboard";
 import Tickets from "./views/Tickets";
 import Terminal from "./views/Terminal";
@@ -18,10 +19,6 @@ import Badge from "./components/Badge";
 import "./styles/base.scss";
 import a from "./App.module.scss";
 
-// Keep a view mounted (state preserved) after switching away; prune it only
-// after this much inactivity — a separate timer per view.
-const KEEP_ALIVE_MS = 10 * 60 * 1000;
-
 // GUI version: no real versioning scheme yet — placeholder until we wire one up
 // (e.g. inject from package.json / git at build time, like the iudex binary).
 const GUI_VERSION = "dev";
@@ -32,23 +29,21 @@ function basename(p: string): string {
 }
 
 export default function App() {
-  // The last folder the user selected — retained for initHere even when it's
-  // not a valid workspace yet.
-  const [pickedPath, setPickedPath] = useState<string | null>(null);
-  // iudex CLI availability: null while checking, then the version line or null
-  // once we know it's missing (the GUI is useless without the binary).
-  const [iudexVersion, setIudexVersion] = useState<string | null>(null);
-  const [iudexErr, setIudexErr] = useState<string | null>(null);
-  const [checkingIudex, setCheckingIudex] = useState(true);
+  // iudex CLI availability gates the whole app (recovery via the splash below).
+  const {
+    version: iudexVersion,
+    error: iudexErr,
+    checking: checkingIudex,
+    recheck: checkIudex,
+  } = useIudexCheck();
   // Standalone (workspace-less) Settings opened from the missing-binary splash,
   // so the user can point the GUI at an iudex binary and recover in place.
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
-  const [root, setRoot] = useState<string | null>(null);
-  const [ws, setWs] = useState<Workspace | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [offerInit, setOfferInit] = useState(false);
-  const [initing, setIniting] = useState(false);
-  const [lastSync, setLastSync] = useState<string>("");
+
+  // Workspace data layer: open/init, status --json, events.jsonl doorbell.
+  const { root, ws, error, setError, offerInit, initing, lastSync, pickAndOpen, initHere, load } =
+    useWorkspace();
+
   // Land on Tickets: the Dashboard reskin is deferred (still the old dark style).
   const [view, setView] = useState<View>("tickets");
   const [focusSession, setFocusSession] = useState<string | null>(null);
@@ -57,244 +52,17 @@ export default function App() {
   // When set alongside focusAgent, the Agents view opens that agent on this tab.
   const [focusAgentTab, setFocusAgentTab] = useState<string | null>(null);
 
-  // ── View keep-alive ─────────────────────────────────────────────────────────
-  // Views stay mounted (state intact) when switched away, and unmount only after
-  // KEEP_ALIVE_MS of inactivity — one timer per view, reset on re-visit.
-  const [mounted, setMounted] = useState<View[]>(["tickets"]);
-  const prevViewRef = useRef<View>("tickets");
-  const pruneTimers = useRef<Partial<Record<View, ReturnType<typeof setTimeout>>>>({});
-
-  useEffect(() => {
-    // Keep the active view mounted; cancel any pending prune for it.
-    setMounted((m) => (m.includes(view) ? m : [...m, view]));
-    const active = pruneTimers.current[view];
-    if (active) {
-      clearTimeout(active);
-      delete pruneTimers.current[view];
-    }
-    // Start the inactivity timer for the view we just left.
-    const prev = prevViewRef.current;
-    if (prev !== view) {
-      if (pruneTimers.current[prev]) clearTimeout(pruneTimers.current[prev]);
-      pruneTimers.current[prev] = setTimeout(() => {
-        setMounted((m) => m.filter((v) => v !== prev));
-        delete pruneTimers.current[prev];
-      }, KEEP_ALIVE_MS);
-    }
-    prevViewRef.current = view;
-  }, [view]);
-
-  // Clear all pending timers if the app itself unmounts.
-  useEffect(() => {
-    const timers = pruneTimers.current;
-    return () => Object.values(timers).forEach((t) => t && clearTimeout(t));
-  }, []);
-
-  // The GUI shells every operation through the iudex CLI, so verify it's on PATH
-  // before anything else — otherwise every command fails with an opaque error.
-  const checkIudex = useCallback(async () => {
-    setCheckingIudex(true);
-    try {
-      const v = await api.checkIudex();
-      setIudexVersion(v);
-      setIudexErr(null);
-    } catch (e) {
-      setIudexVersion(null);
-      setIudexErr(String(e));
-    } finally {
-      setCheckingIudex(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    checkIudex();
-  }, [checkIudex]);
-  const [autoActivate, setAutoActivate] = useState(false);
-  const autoActivateRef = useRef(false);
-  const drainingRef = useRef(false);
-  const skipRef = useRef<Set<string>>(new Set());
-  const [autoQA, setAutoQA] = useState(false);
-  const autoQARef = useRef(false);
-  const qaDrainingRef = useRef(false);
-  const qaHandledRef = useRef<Set<string>>(new Set());
+  // Views stay mounted after switch-away (state intact); pruned after inactivity.
+  const mounted = useViewKeepAlive(view);
   const { sessions } = useSessions();
-
-  const aaKey = (r: string) => `iudex.autoActivate.${r}`;
-  const qaKey = (r: string) => `iudex.autoQA.${r}`;
-
-  const load = useCallback(async (r: string) => {
-    try {
-      const data = await api.iudexStatus(r);
-      setWs(data);
-      setError(null);
-      setLastSync(new Date().toLocaleTimeString());
-    } catch (e) {
-      setError(String(e));
-    }
-  }, []);
-
-  const enter = useCallback(
-    async (r: string) => {
-      setRoot(r);
-      setError(null);
-      setOfferInit(false);
-      await load(r);
-      await api.watchWorkspace(r);
-    },
-    [load]
+  // Opt-in auto-activate / auto-QA drains + the steady-cadence poll.
+  const { autoActivate, autoQA, toggleAutoActivate, toggleAutoQA } = useAutomation(
+    root,
+    ws,
+    sessions,
+    load,
+    setError,
   );
-
-  async function pickAndOpen() {
-    const selected = await openDialog({ directory: true, multiple: false });
-    if (!selected) return;
-    const picked = Array.isArray(selected) ? selected[0] : selected;
-    setPickedPath(picked);
-    setError(null);
-    setOfferInit(false);
-    try {
-      const r = await api.discoverWorkspace(picked);
-      await enter(r);
-    } catch (e) {
-      const msg = String(e);
-      setRoot(null);
-      setWs(null);
-      if (msg.includes("not inside an iudex workspace")) {
-        setOfferInit(true);
-      } else {
-        setError(msg);
-      }
-    }
-  }
-
-  async function initHere() {
-    if (!pickedPath) return;
-    setIniting(true);
-    try {
-      const r = await api.initWorkspace(pickedPath);
-      await enter(r);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setIniting(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!root) return;
-    const un = listen("events-changed", () => load(root));
-    return () => {
-      un.then((f) => f());
-    };
-  }, [root, load]);
-
-  useEffect(() => {
-    if (!root) return;
-    skipRef.current.clear();
-    qaHandledRef.current.clear();
-    setAutoActivate(localStorage.getItem(aaKey(root)) === "true");
-    setAutoQA(localStorage.getItem(qaKey(root)) === "true");
-  }, [root]);
-
-  const toggleAutoActivate = useCallback(
-    (v: boolean) => {
-      autoActivateRef.current = v;
-      skipRef.current.clear();
-      if (root) localStorage.setItem(aaKey(root), String(v));
-      setAutoActivate(v);
-    },
-    [root]
-  );
-
-  const toggleAutoQA = useCallback(
-    (v: boolean) => {
-      autoQARef.current = v;
-      qaHandledRef.current.clear();
-      if (root) localStorage.setItem(qaKey(root), String(v));
-      setAutoQA(v);
-    },
-    [root]
-  );
-
-  useEffect(() => {
-    if (!autoActivate || !root || !ws) return;
-    if (drainingRef.current) return;
-    if (!ws.tickets.some((t) => t.state === "queued" && t.ready)) return;
-    drainingRef.current = true;
-    (async () => {
-      try {
-        while (autoActivateRef.current) {
-          const data = await api.iudexStatus(root);
-          const next = data.tickets.find(
-            (t) => t.state === "queued" && t.ready && !skipRef.current.has(t.id)
-          );
-          if (!next) break;
-          try {
-            await api.runIudex(root, ["activate", next.id]);
-            await api.spawnAgent(root, next.id, "impl");
-          } catch (e) {
-            skipRef.current.add(next.id);
-            setError(String(e));
-          }
-        }
-      } finally {
-        drainingRef.current = false;
-        load(root);
-      }
-    })();
-  }, [autoActivate, root, ws, load]);
-
-  useEffect(() => {
-    if (!autoQA || !root || !ws) return;
-    const pendingQA = new Set(
-      ws.tickets.filter((t) => t.state === "pending-qa").map((t) => t.id)
-    );
-    for (const id of qaHandledRef.current) {
-      if (!pendingQA.has(id)) qaHandledRef.current.delete(id);
-    }
-    const candidates = [...pendingQA].filter((id) => !qaHandledRef.current.has(id));
-    if (candidates.length === 0 || qaDrainingRef.current) return;
-    qaDrainingRef.current = true;
-    (async () => {
-      try {
-        for (const id of candidates) {
-          if (!autoQARef.current) break;
-          const qaSessions = sessions.filter(
-            (s) => s.kind === "agent" && s.role === "qa" && s.ticket === id
-          );
-          let live = false;
-          for (const s of qaSessions) {
-            try {
-              const st = await api.sessionStatus(s.name);
-              if (!st.dead) {
-                live = true;
-                break;
-              }
-            } catch {
-              // unknown → treat as not-live
-            }
-          }
-          qaHandledRef.current.add(id);
-          if (live) continue;
-          try {
-            await api.spawnAgent(root, id, "qa");
-          } catch (e) {
-            setError(String(e));
-          }
-        }
-      } finally {
-        qaDrainingRef.current = false;
-      }
-    })();
-  }, [autoQA, root, ws, sessions]);
-
-  // While either automation is on, poll the workspace every ~7s so the drains
-  // above re-evaluate on a steady cadence (not only on the events doorbell) —
-  // freeing slots / newly-queued / newly-pending-qa tickets get picked up.
-  useEffect(() => {
-    if (!root || (!autoActivate && !autoQA)) return;
-    const h = setInterval(() => load(root), 7000);
-    return () => clearInterval(h);
-  }, [autoActivate, autoQA, root, load]);
 
   // ── First paint blocks on the iudex check; the GUI does nothing without it ──
   if (checkingIudex && !iudexVersion && !iudexErr) {
