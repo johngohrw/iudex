@@ -132,9 +132,9 @@ $cols: 28px 72px 1fr 140px 90px 54px 120px 128px;
   text-align: center;
 }
 
-// ── Detail panel (336px, inline) ──────────────────────────────────────────────
+// ── Detail panel (inline) ──────────────────────────────────────────────
 .panel {
-  width: 336px;
+  width: 370px;
   flex: none;
   background: t.$surface-c8;
   border-left: 1px solid t.$divider-mid;

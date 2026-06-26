@@ -22,7 +22,13 @@ export const TICKET_STATE: Record<string, StateStyle> = {
     short: "queued",
     dark: { bg: "#3a3f4a", fg: "#cfcfcf" },
   },
-  active: { bg: "#f4bc41", fg: "#2a2a2a", dot: "#f4bc41", label: "active", short: "active" },
+  active: {
+    bg: "#f4bc41",
+    fg: "#2a2a2a",
+    dot: "#f4bc41",
+    label: "active",
+    short: "active",
+  },
   "pending-qa": {
     bg: "#5bc7d8",
     fg: "#10333a",
@@ -45,10 +51,16 @@ export const TICKET_STATE: Record<string, StateStyle> = {
     short: "done",
     dark: { bg: "#243029", fg: "#5ccf5c" },
   },
-  failed: { bg: "#e0584c", fg: "#ffffff", dot: "#e0584c", label: "failed", short: "failed" },
+  failed: {
+    bg: "#e0584c",
+    fg: "#ffffff",
+    dot: "#e0584c",
+    label: "failed",
+    short: "failed",
+  },
   removed: {
     bg: "#828282",
-    fg: "#565656",
+    fg: "#3d3b3b",
     dot: "#565656",
     label: "removed",
     short: "removed",
@@ -65,7 +77,9 @@ const STATE_FALLBACK: StateStyle = {
 };
 
 export function ticketState(state: string): StateStyle {
-  return TICKET_STATE[state] ?? { ...STATE_FALLBACK, label: state, short: state };
+  return (
+    TICKET_STATE[state] ?? { ...STATE_FALLBACK, label: state, short: state }
+  );
 }
 
 // Bare state-dot color (Tickets table rows, graph nodes).
