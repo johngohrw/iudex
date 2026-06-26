@@ -230,20 +230,13 @@ function ArchiveTicketDetail({
 
         <section className={s.section}>
           <span className={s.sectionLabel}>log</span>
-          <div className={s.logTabs}>
-            <button
-              className={`${s.logTab} ${logTab === "impl" ? s.logTabOn : ""}`}
-              onClick={() => setLogTab("impl")}
-            >
-              impl
-            </button>
-            <button
-              className={`${s.logTab} ${logTab === "qa" ? s.logTabOn : ""}`}
-              onClick={() => setLogTab("qa")}
-            >
-              qa
-            </button>
-          </div>
+          <TabSwitcher
+            tabs={["impl", "qa"]}
+            value={logTab}
+            onChange={(v) => setLogTab(v as ArchiveLogTab)}
+            fontSize="11px"
+            style={{ alignSelf: "flex-start" }}
+          />
           {docs == null ? (
             <span className={s.muted}>loading…</span>
           ) : log?.trim() ? (

@@ -3,8 +3,13 @@ import * as api from "../lib/api";
 import type { Ticket, Workspace } from "../types";
 import { useTicketDocs } from "../lib/tickets";
 import { useSessions } from "../lib/sessions";
-import { useAgentStatuses, STATUS_LABEL, type AgentStatus } from "../lib/agents";
+import {
+  useAgentStatuses,
+  STATUS_LABEL,
+  type AgentStatus,
+} from "../lib/agents";
 import Badge from "./Badge";
+import TabSwitcher from "./TabSwitcher";
 import s from "./TicketDetail.module.scss";
 
 type LogTab = "impl" | "qa";
@@ -31,13 +36,17 @@ function serializeBrief(title: string, body: string): string {
 function dotClass(status: AgentStatus): string {
   switch (status) {
     case "working":
-    case "resolved": return s.green;
+    case "resolved":
+      return s.green;
     case "awaiting-finish":
     case "review-ready":
-    case "flagged": return s.blue;
+    case "flagged":
+      return s.blue;
     case "crashed":
-    case "gone": return s.red;
-    default: return s.grey;
+    case "gone":
+      return s.red;
+    default:
+      return s.grey;
   }
 }
 
@@ -81,14 +90,18 @@ export default function TicketDetail({
       setEditTitle(parsed.title);
       setEditBody(parsed.body);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docs, ticket.id]);
 
   const save = async () => {
     setSaving(true);
     setSaveStatus("");
     try {
-      await api.writeQueueBrief(root, ticket.id, serializeBrief(editTitle, editBody));
+      await api.writeQueueBrief(
+        root,
+        ticket.id,
+        serializeBrief(editTitle, editBody),
+      );
       setSaveStatus("saved");
     } catch {
       setSaveStatus("error");
@@ -113,7 +126,11 @@ export default function TicketDetail({
   const act = async (fn: () => Promise<unknown>, closeAfter = false) => {
     setMenuOpen(false);
     setActionBusy(true);
-    try { await fn(); } finally { setActionBusy(false); }
+    try {
+      await fn();
+    } finally {
+      setActionBusy(false);
+    }
     if (closeAfter) onClose();
   };
 
@@ -128,7 +145,9 @@ export default function TicketDetail({
       <div className={s.header}>
         <span className={s.headId}>{ticket.id}</span>
         <Badge kind="state" value={ticket.state} />
-        <button className={s.headClose} onClick={onClose} title="close">✕</button>
+        <button className={s.headClose} onClick={onClose} title="close">
+          ✕
+        </button>
       </div>
 
       {/* Title + actions menu */}
@@ -137,15 +156,24 @@ export default function TicketDetail({
           <input
             className={s.titleInput}
             value={editTitle}
-            onChange={(e) => { setEditTitle(e.target.value); setSaveStatus(""); }}
+            onChange={(e) => {
+              setEditTitle(e.target.value);
+              setSaveStatus("");
+            }}
             placeholder="ticket title"
           />
         ) : (
-          <span className={s.titleText}>{displayTitle || <span className="muted">(no title)</span>}</span>
+          <span className={s.titleText}>
+            {displayTitle || <span className="muted">(no title)</span>}
+          </span>
         )}
         {!isTerminal && (
           <div className={s.menuWrap} ref={menuRef}>
-            <button className={s.menuBtn} onClick={() => setMenuOpen((o) => !o)} title="actions">
+            <button
+              className={s.menuBtn}
+              onClick={() => setMenuOpen((o) => !o)}
+              title="actions"
+            >
               ⋮
             </button>
             {menuOpen && (
@@ -164,23 +192,28 @@ export default function TicketDetail({
       {/* Scrollable body */}
       <div className={s.body}>
         {/* Brief */}
-        <Section label="brief">
-          {loading ? (
-            <span className={s.placeholder}>loading…</span>
-          ) : isQueued ? (
-            <textarea
-              className={s.briefTextarea}
-              value={editBody}
-              onChange={(e) => { setEditBody(e.target.value); setSaveStatus(""); }}
-              placeholder="markdown brief…"
-              rows={6}
-            />
-          ) : docs?.brief?.trim() ? (
-            <pre className={s.briefDoc}>{docs.brief}</pre>
-          ) : (
-            <span className={s.placeholder}>(no brief)</span>
-          )}
-        </Section>
+        <div style={{ marginBottom: "6px" }}>
+          <Section label="brief">
+            {loading ? (
+              <span className={s.placeholder}>loading…</span>
+            ) : isQueued ? (
+              <textarea
+                className={s.briefTextarea}
+                value={editBody}
+                onChange={(e) => {
+                  setEditBody(e.target.value);
+                  setSaveStatus("");
+                }}
+                placeholder="markdown brief…"
+                rows={6}
+              />
+            ) : docs?.brief?.trim() ? (
+              <pre className={s.briefDoc}>{docs.brief}</pre>
+            ) : (
+              <span className={s.placeholder}>(no brief)</span>
+            )}
+          </Section>
+        </div>
 
         {/* Info + Agents */}
         <div className={s.grid2}>
@@ -189,7 +222,11 @@ export default function TicketDetail({
               <div className={s.kv}>
                 <span>prerequisites</span>
                 <div className={s.chips}>
-                  {ticket.deps.map((d) => <span key={d} className={s.chip}>{d}</span>)}
+                  {ticket.deps.map((d) => (
+                    <span key={d} className={s.chip}>
+                      {d}
+                    </span>
+                  ))}
                 </div>
               </div>
             )}
@@ -197,7 +234,11 @@ export default function TicketDetail({
               <div className={s.kv}>
                 <span>blocks</span>
                 <div className={s.chips}>
-                  {(ticket.blocks ?? []).map((d) => <span key={d} className={s.chip}>{d}</span>)}
+                  {(ticket.blocks ?? []).map((d) => (
+                    <span key={d} className={s.chip}>
+                      {d}
+                    </span>
+                  ))}
                 </div>
               </div>
             )}
@@ -213,9 +254,12 @@ export default function TicketDetail({
                 <span>{ticket.qaRejects}</span>
               </div>
             )}
-            {ticket.deps.length === 0 && (ticket.blocks ?? []).length === 0 && !ticket.worktree && ticket.qaRejects === 0 && (
-              <span className={s.placeholder}>no metadata yet</span>
-            )}
+            {ticket.deps.length === 0 &&
+              (ticket.blocks ?? []).length === 0 &&
+              !ticket.worktree &&
+              ticket.qaRejects === 0 && (
+                <span className={s.placeholder}>no metadata yet</span>
+              )}
           </Section>
 
           <Section label="agents">
@@ -233,7 +277,9 @@ export default function TicketDetail({
                   >
                     <span className={`${s.dot} ${dotClass(status)}`} />
                     <span className={s.agentRole}>{a.role ?? "agent"}</span>
-                    <span className={s.agentStatus}>{STATUS_LABEL[status]}</span>
+                    <span className={s.agentStatus}>
+                      {STATUS_LABEL[status]}
+                    </span>
                   </div>
                 );
               })
@@ -243,36 +289,30 @@ export default function TicketDetail({
 
         {/* Log */}
         <Section label="log">
-          <div className={s.logTabs}>
-            <button
-              className={`${s.logTab} ${logTab === "impl" ? s.active : ""}`}
-              onClick={() => setLogTab("impl")}
-              disabled={!hasWorktree}
-            >
-              impl
-            </button>
-            <button
-              className={`${s.logTab} ${logTab === "qa" ? s.active : ""}`}
-              onClick={() => setLogTab("qa")}
-              disabled={!hasWorktree}
-            >
-              qa
-            </button>
-          </div>
+          {hasWorktree && (
+            <div style={{ marginBottom: 6 }}>
+              <TabSwitcher
+                tabs={["impl", "qa"]}
+                value={logTab}
+                onChange={(v) => setLogTab(v as LogTab)}
+                fontSize="11px"
+              />
+            </div>
+          )}
           {!hasWorktree ? (
-            <span className={s.placeholder}>no log until ticket is activated</span>
+            <span className={s.placeholder}>
+              no log until ticket is activated
+            </span>
           ) : logTab === "impl" ? (
             hasLog ? (
               <pre className={s.logDoc}>{docs!.log}</pre>
             ) : (
               <span className={s.placeholder}>(no impl log yet)</span>
             )
+          ) : hasQaReview ? (
+            <pre className={s.logDoc}>{docs!.review}</pre>
           ) : (
-            hasQaReview ? (
-              <pre className={s.logDoc}>{docs!.review}</pre>
-            ) : (
-              <span className={s.placeholder}>(no QA review yet)</span>
-            )
+            <span className={s.placeholder}>(no QA review yet)</span>
           )}
         </Section>
       </div>
@@ -283,15 +323,25 @@ export default function TicketDetail({
           <button className={s.saveBtn} disabled={saving} onClick={save}>
             {saving ? "Saving…" : "Save"}
           </button>
-          {saveStatus === "saved" && <span className={s.saveStatus}>✓ saved</span>}
-          {saveStatus === "error" && <span className={`${s.saveStatus} error`}>✗ save failed</span>}
+          {saveStatus === "saved" && (
+            <span className={s.saveStatus}>✓ saved</span>
+          )}
+          {saveStatus === "error" && (
+            <span className={`${s.saveStatus} error`}>✗ save failed</span>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+function Section({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className={s.section}>
       <span className={s.sectionLabel}>{label}</span>
@@ -327,32 +377,50 @@ function ActionsMenu({
         <button
           className={s.menuItem}
           disabled={busy}
-          onClick={() => onAct(async () => {
-            await api.runIudex(root, ["activate", ticket.id]);
-            const s = await api.spawnAgent(root, ticket.id, "impl");
-            onJumpToAgent(s.name);
-          })}
+          onClick={() =>
+            onAct(async () => {
+              await api.runIudex(root, ["activate", ticket.id]);
+              const s = await api.spawnAgent(root, ticket.id, "impl");
+              onJumpToAgent(s.name);
+            })
+          }
         >
-          Activate
+          Spawn Agent
         </button>
       )}
       {ticket.state === "active" && (
         <>
-          <button className={s.menuItem} disabled={busy} onClick={() => run(["finish", ticket.id])}>
+          <button
+            className={s.menuItem}
+            disabled={busy}
+            onClick={() => run(["finish", ticket.id])}
+          >
             Finish
           </button>
-          <button className={s.menuItem} disabled={busy} onClick={() => spawnAndJump("impl")}>
+          <button
+            className={s.menuItem}
+            disabled={busy}
+            onClick={() => spawnAndJump("impl")}
+          >
             Spawn agent
           </button>
         </>
       )}
       {ticket.state === "pending-qa" && (
-        <button className={s.menuItem} disabled={busy} onClick={() => spawnAndJump("qa")}>
+        <button
+          className={s.menuItem}
+          disabled={busy}
+          onClick={() => spawnAndJump("qa")}
+        >
           QA agent
         </button>
       )}
       {ticket.state === "failed" && (
-        <button className={s.menuItem} disabled={busy} onClick={() => run(["retry", ticket.id])}>
+        <button
+          className={s.menuItem}
+          disabled={busy}
+          onClick={() => run(["retry", ticket.id])}
+        >
           Retry
         </button>
       )}

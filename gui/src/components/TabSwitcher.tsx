@@ -14,7 +14,7 @@ export default function TabSwitcher({
 }) {
   const active = value || tabs[0] || "";
   return (
-    <div style={{ display: "flex", background: "#929292", border: "1px solid #6f6f6f", padding: 1, ...style }}>
+    <div style={{ display: "inline-flex", background: "#929292", border: "1px solid #6f6f6f", padding: 1, ...style }}>
       {tabs.map((label) => {
         const on = label === active;
         return (

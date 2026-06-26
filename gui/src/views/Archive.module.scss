@@ -115,7 +115,7 @@ $cols: 28px 72px 1fr 130px 54px 110px 110px;
 
 // ── Compact archive-ticket detail panel (mirrors the live TicketDetail) ───────
 .detailPane {
-  width: 336px;
+  width: 370px;
   flex: none;
   display: flex;
   min-height: 0;
@@ -224,28 +224,6 @@ $cols: 28px 72px 1fr 130px 54px 110px 110px;
   color: t.$text;
   word-break: break-word;
 }
-.logTabs {
-  display: flex;
-  gap: 1px;
-}
-.logTab {
-  padding: 3px 10px;
-  border: none;
-  border-bottom: 2px solid transparent;
-  background: t.$panel-rail;
-  color: t.$text-muted;
-  cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
-  font-family: t.$font-ui;
-  font-size: 11px;
-
-  &.logTabOn {
-    color: t.$text;
-    border-bottom-color: t.$amber;
-  }
-}
-
 // ── Review tab: master-detail ─────────────────────────────────────────────────
 .root {
   display: flex;

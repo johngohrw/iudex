@@ -196,8 +196,7 @@
 // ── Two-column grid (info + agents) ───────────────────
 .grid2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: 1fr;
 }
 
 // ── Info section ──────────────────────────────────────
@@ -288,34 +287,6 @@
 }
 
 // ── Log section ───────────────────────────────────────
-.logTabs {
-  display: flex;
-  gap: 1px;
-  margin-bottom: 8px;
-  width: fit-content;
-  background: t.$divider-mid;
-  border: 1px solid t.$divider-mid;
-}
-.logTab {
-  padding: 1px 11px;
-  border: none;
-  background: t.$panel-rail;
-  color: t.$text-muted;
-  cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
-  font-size: 11px;
-  font-family: t.$font-ui;
-
-  &.active {
-    background: t.$panel-light;
-    color: t.$text;
-  }
-  &:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-}
 .logDoc {
   margin: 0;
   display: block;
