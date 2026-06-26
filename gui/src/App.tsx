@@ -41,8 +41,18 @@ export default function App() {
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
 
   // Workspace data layer: open/init, status --json, events.jsonl doorbell.
-  const { root, ws, error, setError, offerInit, initing, lastSync, pickAndOpen, initHere, load } =
-    useWorkspace();
+  const {
+    root,
+    ws,
+    error,
+    setError,
+    offerInit,
+    initing,
+    lastSync,
+    pickAndOpen,
+    initHere,
+    load,
+  } = useWorkspace();
 
   // Land on Tickets: the Dashboard reskin is deferred (still the old dark style).
   const [view, setView] = useState<View>("tickets");
@@ -56,13 +66,8 @@ export default function App() {
   const mounted = useViewKeepAlive(view);
   const { sessions } = useSessions();
   // Opt-in auto-activate / auto-QA drains + the steady-cadence poll.
-  const { autoActivate, autoQA, toggleAutoActivate, toggleAutoQA } = useAutomation(
-    root,
-    ws,
-    sessions,
-    load,
-    setError,
-  );
+  const { autoActivate, autoQA, toggleAutoActivate, toggleAutoQA } =
+    useAutomation(root, ws, sessions, load, setError);
 
   // ── First paint blocks on the iudex check; the GUI does nothing without it ──
   if (checkingIudex && !iudexVersion && !iudexErr) {
@@ -111,21 +116,30 @@ export default function App() {
             </header>
 
             <div className={a.errBody}>
-              <p className={a.errLede}>The iudex command-line tool isn’t available.</p>
+              <p className={a.errLede}>
+                The iudex command-line tool isn’t available.
+              </p>
               <pre className={a.errCode}>{iudexErr}</pre>
               <p className={a.errHint}>
-                iudex drives this app the way git drives a git client. Install the{" "}
-                <code>iudex</code> binary and point the GUI at it — set the path in Settings,
-                or put <code>iudex</code> on your PATH (or set <code>IUDEX_BIN</code>) and
-                re-check.
+                iudex drives this app the way git drives a git client. Install
+                the <code>iudex</code> binary and point the GUI at it — set the
+                path in Settings, or put <code>iudex</code> on your PATH (or set{" "}
+                <code>IUDEX_BIN</code>) and re-check.
               </p>
             </div>
 
             <footer className={a.errActions}>
-              <Button variant="quiet" disabled={checkingIudex} onClick={checkIudex}>
+              <Button
+                variant="quiet"
+                disabled={checkingIudex}
+                onClick={checkIudex}
+              >
                 {checkingIudex ? "Checking…" : "Re-check"}
               </Button>
-              <Button variant="primary" onClick={() => setShowGlobalSettings(true)}>
+              <Button
+                variant="primary"
+                onClick={() => setShowGlobalSettings(true)}
+              >
                 Open Settings
               </Button>
             </footer>
@@ -178,10 +192,11 @@ export default function App() {
   const activeCount = cnt("active");
   const navCounts: Partial<Record<View, number>> = {
     terminal: sessions.filter((s) => s.kind !== "agent").length,
-    tickets: tickets.filter((t) => t.state !== "removed" && t.state !== "done").length,
+    tickets: tickets.filter((t) => t.state !== "removed" && t.state !== "done")
+      .length,
     agents: sessions.filter((s) => s.kind === "agent").length,
     worktrees: new Set(
-      tickets.filter((t) => t.hasWorktree && t.worktree).map((t) => t.worktree)
+      tickets.filter((t) => t.hasWorktree && t.worktree).map((t) => t.worktree),
     ).size,
     review: cnt("pending-human-qa"),
   };
@@ -203,13 +218,22 @@ export default function App() {
         className={a.navItem}
         onClick={() => setView(v.id)}
         style={
-          on ? { borderLeftColor: "#f4bc41", background: "#1f2e90", color: "#e8e9eb" } : undefined
+          on
+            ? {
+                borderLeftColor: "#f4bc41",
+                background: "#1f2e90",
+                color: "#e8e9eb",
+              }
+            : undefined
         }
       >
         <span className={a.navDot} style={{ background: v.dot }} />
         <span className={a.navLabel}>{v.label}</span>
         {count !== undefined && count > 0 && (
-          <span className={a.navCount} style={on ? { color: "#cdd2ff" } : undefined}>
+          <span
+            className={a.navCount}
+            style={on ? { color: "#cdd2ff" } : undefined}
+          >
             {count}
           </span>
         )}
@@ -253,13 +277,17 @@ export default function App() {
         <div className={a.body}>
           <nav className={a.rail}>
             <SectionHeader tone="dark" noBorder>
-              VIEWS
+              BUILD
             </SectionHeader>
             {RAIL_VIEWS.map(navButton)}
 
-            <div className={a.railSpacer} />
+            <SectionHeader tone="dark" noBorder>
+              OTHERS
+            </SectionHeader>
 
             {RAIL_SECONDARY.map(navButton)}
+
+            <div className={a.railSpacer} />
 
             <div className={a.railBottom}>
               <div className={a.pipeline}>
@@ -331,7 +359,10 @@ export default function App() {
                 {maxActive > 0 && (
                   <div className={a.sysBar}>
                     {Array.from({ length: maxActive }).map((_, i) => (
-                      <span key={i} className={`${a.sysSeg} ${i < activeCount ? a.on : ""}`} />
+                      <span
+                        key={i}
+                        className={`${a.sysSeg} ${i < activeCount ? a.on : ""}`}
+                      />
                     ))}
                   </div>
                 )}
@@ -346,10 +377,7 @@ export default function App() {
 
           <section className={a.main}>
             {error && <div className="error">{error}</div>}
-            {renderView(
-              "dashboard",
-              <Dashboard />,
-            )}
+            {renderView("dashboard", <Dashboard />)}
             {renderView(
               "tickets",
               <Tickets
