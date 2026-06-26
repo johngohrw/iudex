@@ -42,6 +42,23 @@ func loadContext() (*wsContext, error) {
 	return &wsContext{Root: root, Config: cfg, Events: evs, Statuses: statuses}, nil
 }
 
+// transition checks the ticket exists and that trigger t is legal from its
+// current state, returning the status and the resulting state. The state machine
+// itself lives in package ticket (ticket.Apply); this is the thin cmd-layer
+// adapter that adds the existence check and the ticket id to errors. Side effects
+// and the event append stay with the caller, whose ordering varies per command.
+func (ctx *wsContext) transition(id string, t ticket.Trigger) (*ticket.Status, ticket.State, error) {
+	s := ctx.Statuses[id]
+	if s == nil {
+		return nil, "", fmt.Errorf("ticket %s is not registered", id)
+	}
+	next, err := ticket.Apply(s, t, ctx.Config.QARejectLimit)
+	if err != nil {
+		return nil, "", fmt.Errorf("ticket %s: %w", id, err)
+	}
+	return s, next, nil
+}
+
 // resolveTicket returns the explicit ticket id from args, or infers it from the
 // current directory when inside a ticket worktree. Used by worktree-scoped
 // commands (finish, qa, spawn).

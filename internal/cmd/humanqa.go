@@ -42,25 +42,13 @@ func newHumanQACmd() *cobra.Command {
 	return hq
 }
 
-// pendingHumanQATicket resolves the ticket and verifies it awaits human QA.
-func pendingHumanQATicket(id string) (*wsContext, error) {
-	ctx, err := loadContext()
-	if err != nil {
-		return nil, err
-	}
-	s := ctx.Statuses[id]
-	if s == nil {
-		return nil, fmt.Errorf("ticket %s is not registered", id)
-	}
-	if s.State != ticket.StatePendingHumanQA {
-		return nil, fmt.Errorf("ticket %s is %s, not pending-human-qa", id, s.State)
-	}
-	return ctx, nil
-}
-
 func runHumanQAApprove(cmd *cobra.Command, args []string) error {
 	id := args[0]
-	ctx, err := pendingHumanQATicket(id)
+	ctx, err := loadContext()
+	if err != nil {
+		return err
+	}
+	s, next, err := ctx.transition(id, ticket.TriggerHumanQAApprove)
 	if err != nil {
 		return err
 	}
@@ -100,8 +88,8 @@ func runHumanQAApprove(cmd *cobra.Command, args []string) error {
 	// removal are best-effort cleanup; their failure leaves the ticket done.
 	if _, err := events.Append(ctx.Root, events.Event{
 		Ticket:  id,
-		From:    string(ticket.StatePendingHumanQA),
-		To:      string(ticket.StateDone),
+		From:    string(s.State),
+		To:      string(next),
 		Trigger: string(ticket.TriggerHumanQAApprove),
 		Reason:  "merge " + commit,
 	}); err != nil {
@@ -124,7 +112,11 @@ func runHumanQAApprove(cmd *cobra.Command, args []string) error {
 
 func runHumanQAReject(cmd *cobra.Command, args []string) error {
 	id := args[0]
-	ctx, err := pendingHumanQATicket(id)
+	ctx, err := loadContext()
+	if err != nil {
+		return err
+	}
+	s, next, err := ctx.transition(id, ticket.TriggerHumanQAReject)
 	if err != nil {
 		return err
 	}
@@ -138,8 +130,8 @@ func runHumanQAReject(cmd *cobra.Command, args []string) error {
 
 	if _, err := events.Append(ctx.Root, events.Event{
 		Ticket:  id,
-		From:    string(ticket.StatePendingHumanQA),
-		To:      string(ticket.StateActive),
+		From:    string(s.State),
+		To:      string(next),
 		Trigger: string(ticket.TriggerHumanQAReject),
 		Reason:  reason,
 	}); err != nil {

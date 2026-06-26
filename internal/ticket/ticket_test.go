@@ -34,6 +34,76 @@ func wantStatus(t *testing.T, s *Status, state State, rejects int) {
 	}
 }
 
+func TestApply(t *testing.T) {
+	cases := []struct {
+		name    string
+		from    State
+		rejects int
+		trigger Trigger
+		limit   int
+		want    State
+		wantErr bool
+	}{
+		// the deterministic happy path
+		{"activate queued", StateQueued, 0, TriggerActivate, 0, StateActive, false},
+		{"finish active", StateActive, 0, TriggerFinish, 0, StatePendingQA, false},
+		{"qa-approve", StatePendingQA, 0, TriggerQAApprove, 0, StatePendingHumanQA, false},
+		{"human-qa-approve", StatePendingHumanQA, 0, TriggerHumanQAApprove, 0, StateDone, false},
+		{"human-qa-reject", StatePendingHumanQA, 0, TriggerHumanQAReject, 0, StateActive, false},
+		{"retry failed", StateFailed, 0, TriggerRetry, 0, StateActive, false},
+
+		// qa-reject ladder: below the limit -> active, at it -> failed
+		{"reject below limit", StatePendingQA, 0, TriggerQAReject, 3, StateActive, false},
+		{"reject one below limit", StatePendingQA, 1, TriggerQAReject, 3, StateActive, false},
+		{"reject reaches limit", StatePendingQA, 2, TriggerQAReject, 3, StateFailed, false},
+		{"reject past limit", StatePendingQA, 5, TriggerQAReject, 3, StateFailed, false},
+		{"reject unlimited (0)", StatePendingQA, 99, TriggerQAReject, 0, StateActive, false},
+		{"reject unlimited (neg)", StatePendingQA, 99, TriggerQAReject, -1, StateActive, false},
+		{"reject limit 1 fails first", StatePendingQA, 0, TriggerQAReject, 1, StateFailed, false},
+
+		// remove: legal from any non-terminal state, illegal from terminal
+		{"remove queued", StateQueued, 0, TriggerRemove, 0, StateRemoved, false},
+		{"remove active", StateActive, 0, TriggerRemove, 0, StateRemoved, false},
+		{"remove pending-human-qa", StatePendingHumanQA, 0, TriggerRemove, 0, StateRemoved, false},
+		{"remove failed", StateFailed, 0, TriggerRemove, 0, StateRemoved, false},
+		{"remove done illegal", StateDone, 0, TriggerRemove, 0, "", true},
+		{"remove removed illegal", StateRemoved, 0, TriggerRemove, 0, "", true},
+
+		// illegal: right trigger, wrong state
+		{"activate active", StateActive, 0, TriggerActivate, 0, "", true},
+		{"finish queued", StateQueued, 0, TriggerFinish, 0, "", true},
+		{"qa-approve active", StateActive, 0, TriggerQAApprove, 0, "", true},
+		{"qa-reject active", StateActive, 0, TriggerQAReject, 3, "", true},
+		{"human-qa-approve active", StateActive, 0, TriggerHumanQAApprove, 0, "", true},
+		{"retry active", StateActive, 0, TriggerRetry, 0, "", true},
+		{"retry done", StateDone, 0, TriggerRetry, 0, "", true},
+
+		// illegal: unregistered ticket (state none) accepts no trigger here
+		{"activate none", StateNone, 0, TriggerActivate, 0, "", true},
+		{"finish none", StateNone, 0, TriggerFinish, 0, "", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := Apply(&Status{Ticket: "t1", State: c.from, QARejects: c.rejects}, c.trigger, c.limit)
+			if c.wantErr {
+				if err == nil {
+					t.Fatalf("Apply(%s, %s) = %q, want error", c.from, c.trigger, got)
+				}
+				if _, ok := err.(*IllegalTransition); !ok {
+					t.Errorf("error is %T, want *IllegalTransition", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Apply(%s, %s): unexpected error %v", c.from, c.trigger, err)
+			}
+			if got != c.want {
+				t.Errorf("Apply(%s, %s) = %q, want %q", c.from, c.trigger, got, c.want)
+			}
+		})
+	}
+}
+
 func TestDeriveHappyPath(t *testing.T) {
 	st := derive(t, []events.Event{
 		ev("t1", "", "queued", "queue"),

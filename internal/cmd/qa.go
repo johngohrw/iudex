@@ -36,35 +36,34 @@ func newQACmd() *cobra.Command {
 	return qa
 }
 
-// pendingQATicket resolves the ticket and verifies it is awaiting agent QA.
-func pendingQATicket(args []string) (*wsContext, string, error) {
+// qaTransition resolves the ticket from args and validates trigger t (qa-approve
+// or qa-reject) against its state, returning the context, id, status, and the
+// resulting state.
+func qaTransition(args []string, t ticket.Trigger) (*wsContext, string, *ticket.Status, ticket.State, error) {
 	ctx, err := loadContext()
 	if err != nil {
-		return nil, "", err
+		return nil, "", nil, "", err
 	}
 	id, err := resolveTicket(ctx.Root, args)
 	if err != nil {
-		return nil, "", err
+		return nil, "", nil, "", err
 	}
-	s := ctx.Statuses[id]
-	if s == nil {
-		return nil, "", fmt.Errorf("ticket %s is not registered", id)
+	s, next, err := ctx.transition(id, t)
+	if err != nil {
+		return nil, "", nil, "", err
 	}
-	if s.State != ticket.StatePendingQA {
-		return nil, "", fmt.Errorf("ticket %s is %s, not pending-qa", id, s.State)
-	}
-	return ctx, id, nil
+	return ctx, id, s, next, nil
 }
 
 func runQAApprove(cmd *cobra.Command, args []string) error {
-	ctx, id, err := pendingQATicket(args)
+	ctx, id, s, next, err := qaTransition(args, ticket.TriggerQAApprove)
 	if err != nil {
 		return err
 	}
 	if _, err := events.Append(ctx.Root, events.Event{
 		Ticket:  id,
-		From:    string(ticket.StatePendingQA),
-		To:      string(ticket.StatePendingHumanQA),
+		From:    string(s.State),
+		To:      string(next),
 		Trigger: string(ticket.TriggerQAApprove),
 	}); err != nil {
 		return err
@@ -74,23 +73,21 @@ func runQAApprove(cmd *cobra.Command, args []string) error {
 }
 
 func runQAReject(cmd *cobra.Command, args []string) error {
-	ctx, id, err := pendingQATicket(args)
+	ctx, id, s, next, err := qaTransition(args, ticket.TriggerQAReject)
 	if err != nil {
 		return err
 	}
 
-	count := ctx.Statuses[id].QARejects + 1
+	// next encodes the reject-ladder outcome (ticket.Apply); recompute count and
+	// the limit only for the human-readable message.
+	count := s.QARejects + 1
 	limit := ctx.Config.QARejectLimit
-	failed := limit > 0 && count >= limit // limit <= 0 means unlimited
+	failed := next == ticket.StateFailed
 
-	to := ticket.StateActive
-	if failed {
-		to = ticket.StateFailed
-	}
 	if _, err := events.Append(ctx.Root, events.Event{
 		Ticket:  id,
-		From:    string(ticket.StatePendingQA),
-		To:      string(to),
+		From:    string(s.State),
+		To:      string(next),
 		Trigger: string(ticket.TriggerQAReject),
 	}); err != nil {
 		return err

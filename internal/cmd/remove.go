@@ -32,12 +32,9 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	}
 	id := args[0]
 
-	s := ctx.Statuses[id]
-	if s == nil {
-		return fmt.Errorf("ticket %s is not registered", id)
-	}
-	if ticket.IsTerminal(s.State) {
-		return fmt.Errorf("ticket %s is already %s", id, s.State)
+	s, next, err := ctx.transition(id, ticket.TriggerRemove)
+	if err != nil {
+		return err
 	}
 
 	out := cmd.OutOrStdout()
@@ -57,7 +54,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	if _, err := events.Append(ctx.Root, events.Event{
 		Ticket:  id,
 		From:    string(s.State),
-		To:      string(ticket.StateRemoved),
+		To:      string(next),
 		Trigger: string(ticket.TriggerRemove),
 	}); err != nil {
 		return err

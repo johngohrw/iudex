@@ -27,18 +27,15 @@ func runRetry(cmd *cobra.Command, args []string) error {
 	}
 	id := args[0]
 
-	s := ctx.Statuses[id]
-	if s == nil {
-		return fmt.Errorf("ticket %s is not registered", id)
-	}
-	if s.State != ticket.StateFailed {
-		return fmt.Errorf("ticket %s is %s, not failed", id, s.State)
+	s, next, err := ctx.transition(id, ticket.TriggerRetry)
+	if err != nil {
+		return err
 	}
 
 	if _, err := events.Append(ctx.Root, events.Event{
 		Ticket:  id,
-		From:    string(ticket.StateFailed),
-		To:      string(ticket.StateActive),
+		From:    string(s.State),
+		To:      string(next),
 		Trigger: string(ticket.TriggerRetry),
 	}); err != nil {
 		return err

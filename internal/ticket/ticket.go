@@ -41,6 +41,78 @@ const (
 	TriggerRemove         Trigger = "remove"
 )
 
+// transition is one deterministic rule in the state machine: a trigger is legal
+// only from a state listed in from, and moves the ticket to to.
+type transition struct {
+	from []State
+	to   State
+}
+
+// transitions is the deterministic core of the state machine: every trigger
+// whose target depends only on the current state. The two state-sensitive
+// triggers are handled directly in Apply — qa-reject (target depends on the
+// reject counter and the configured limit) and remove (legal from any
+// non-terminal state). Genesis (none --queue--> queued) is owned by the queue
+// command, which validates absence rather than a transition.
+var transitions = map[Trigger]transition{
+	TriggerActivate:       {from: []State{StateQueued}, to: StateActive},
+	TriggerFinish:         {from: []State{StateActive}, to: StatePendingQA},
+	TriggerQAApprove:      {from: []State{StatePendingQA}, to: StatePendingHumanQA},
+	TriggerHumanQAApprove: {from: []State{StatePendingHumanQA}, to: StateDone},
+	TriggerHumanQAReject:  {from: []State{StatePendingHumanQA}, to: StateActive},
+	TriggerRetry:          {from: []State{StateFailed}, to: StateActive},
+}
+
+// IllegalTransition reports a trigger that is not valid from a ticket's current
+// state. Callers prepend the ticket id.
+type IllegalTransition struct {
+	From    State
+	Trigger Trigger
+}
+
+func (e *IllegalTransition) Error() string {
+	if e.From == StateNone {
+		return fmt.Sprintf("cannot %s an unregistered ticket", e.Trigger)
+	}
+	return fmt.Sprintf("cannot %s a ticket in state %s", e.Trigger, e.From)
+}
+
+// Apply validates trigger t against the ticket's current state and returns the
+// resulting state, or an *IllegalTransition. It is the single source of truth
+// for which transitions are legal and where they lead; the surrounding side
+// effects (worktrees, merges, archiving) and world-guards (dependencies,
+// max_active, a clean repo) stay with the commands.
+//
+// qaRejectLimit is consulted only for qa-reject, where the target is active
+// below the limit and failed once it is reached (a limit <= 0 means unlimited).
+// It is ignored for every other trigger.
+func Apply(s *Status, t Trigger, qaRejectLimit int) (State, error) {
+	switch t {
+	case TriggerRemove:
+		if IsTerminal(s.State) {
+			return "", &IllegalTransition{From: s.State, Trigger: t}
+		}
+		return StateRemoved, nil
+	case TriggerQAReject:
+		if s.State != StatePendingQA {
+			return "", &IllegalTransition{From: s.State, Trigger: t}
+		}
+		count := s.QARejects + 1
+		if qaRejectLimit > 0 && count >= qaRejectLimit {
+			return StateFailed, nil
+		}
+		return StateActive, nil
+	}
+	if tr, ok := transitions[t]; ok {
+		for _, f := range tr.from {
+			if s.State == f {
+				return tr.to, nil
+			}
+		}
+	}
+	return "", &IllegalTransition{From: s.State, Trigger: t}
+}
+
 // IsTerminal reports whether a state has no outgoing transitions.
 func IsTerminal(s State) bool {
 	return s == StateDone || s == StateRemoved

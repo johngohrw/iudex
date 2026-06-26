@@ -39,12 +39,9 @@ func runActivate(cmd *cobra.Command, args []string) error {
 
 	// --- preconditions (validate everything before mutating anything) ---
 
-	s := ctx.Statuses[id]
-	if s == nil {
-		return fmt.Errorf("ticket %s is not registered — queue it first", id)
-	}
-	if s.State != ticket.StateQueued {
-		return fmt.Errorf("ticket %s is %s, not queued", id, s.State)
+	s, next, err := ctx.transition(id, ticket.TriggerActivate)
+	if err != nil {
+		return err
 	}
 
 	if ready, blocking := ticket.DepsReady(s, ctx.Statuses); !ready {
@@ -92,8 +89,8 @@ func runActivate(cmd *cobra.Command, args []string) error {
 
 	if _, err := events.Append(ctx.Root, events.Event{
 		Ticket:  id,
-		From:    string(ticket.StateQueued),
-		To:      string(ticket.StateActive),
+		From:    string(s.State),
+		To:      string(next),
 		Trigger: string(ticket.TriggerActivate),
 	}); err != nil {
 		return err

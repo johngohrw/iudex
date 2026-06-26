@@ -33,12 +33,9 @@ func runFinish(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	s := ctx.Statuses[id]
-	if s == nil {
-		return fmt.Errorf("ticket %s is not registered", id)
-	}
-	if s.State != ticket.StateActive {
-		return fmt.Errorf("ticket %s is %s, not active", id, s.State)
+	s, next, err := ctx.transition(id, ticket.TriggerFinish)
+	if err != nil {
+		return err
 	}
 
 	out := cmd.OutOrStdout()
@@ -58,8 +55,8 @@ func runFinish(cmd *cobra.Command, args []string) error {
 
 	if _, err := events.Append(ctx.Root, events.Event{
 		Ticket:  id,
-		From:    string(ticket.StateActive),
-		To:      string(ticket.StatePendingQA),
+		From:    string(s.State),
+		To:      string(next),
 		Trigger: string(ticket.TriggerFinish),
 	}); err != nil {
 		return err
