@@ -135,12 +135,14 @@
   align-items: baseline;
   gap: 9px;
   min-width: 0;
+  align-self: stretch; // span headInfo's width so the title can be bounded
 }
 .headId {
   font-family: t.$font-mono;
   font-weight: 600;
   font-size: 13px;
   color: t.$text;
+  flex: none;
 }
 .headName {
   font-size: 13px;
@@ -148,6 +150,8 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0; // allow the flex child to shrink below content → ellipsis
 }
 .headSub {
   display: flex;
