@@ -164,7 +164,8 @@ export default function TicketGraph({
           return (
             <div
               key={t.id}
-              onMouseDown={(e) => e.stopPropagation()}
+              // The whole card is the drag handle (not just the header).
+              onMouseDown={nodeDown(t.id)}
               onClick={() => onSelect(t.id)}
               style={{
                 position: "absolute",
@@ -175,12 +176,12 @@ export default function TicketGraph({
                 border: `1px solid ${on ? "#1f2e90" : "#14171d"}`,
                 borderRadius: 2,
                 boxShadow: "0 4px 14px rgba(0,0,0,0.45)",
+                WebkitUserSelect: "none",
                 userSelect: "none",
-                cursor: "pointer",
+                cursor: "grab",
               }}
             >
               <div
-                onMouseDown={nodeDown(t.id)}
                 style={{
                   height: 24,
                   display: "flex",
@@ -204,7 +205,7 @@ export default function TicketGraph({
               </div>
               <div style={{ padding: "6px 9px" }}>
                 <div style={{ fontSize: 12, color: "#c9ccd1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {titles[t.worktree ?? ""] || t.id}
+                  {titles[t.id] || t.id}
                 </div>
                 <div style={{ marginTop: 3, fontFamily: "var(--font-mono)", fontSize: 10, color: "#8a8f99" }}>
                   {t.deps.length ? `needs ${t.deps.join(" ")}` : t.state}
