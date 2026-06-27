@@ -292,7 +292,10 @@ export default function TicketDetail({
           {hasWorktree && (
             <div style={{ marginBottom: 6 }}>
               <TabSwitcher
-                tabs={["impl", "qa"]}
+                tabs={[
+                  { label: "Implement", value: "impl" },
+                  { label: "QA", value: "qa" },
+                ]}
                 value={logTab}
                 onChange={(v) => setLogTab(v as LogTab)}
                 fontSize="11px"

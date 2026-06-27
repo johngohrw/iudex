@@ -179,7 +179,7 @@ export default function Agents({
               {agents.length} agent{agents.length === 1 ? "" : "s"}
             </span>
             <Button variant="quiet" size="sm" onClick={clearFinished}>
-              clear all finished
+              Clear All Finished
             </Button>
           </div>
         </aside>

@@ -54,9 +54,12 @@ export default function Archive({ root }: { root: string }) {
         <span className={s.headerDot} />
         <span className={s.headerTitle}>Archive</span>
         <TabSwitcher
-          tabs={["Tickets", "Review"]}
-          value={tab === "tickets" ? "Tickets" : "Review"}
-          onChange={(v) => setTab(v === "Tickets" ? "tickets" : "review")}
+          tabs={[
+            { label: "Tickets", value: "tickets" },
+            { label: "Review", value: "review" },
+          ]}
+          value={tab}
+          onChange={setTab}
           style={{ marginLeft: 4 }}
         />
       </header>
@@ -253,7 +256,10 @@ function ArchiveTicketDetail({
         <section className={s.section}>
           <span className={s.sectionLabel}>log</span>
           <TabSwitcher
-            tabs={["impl", "qa"]}
+            tabs={[
+              { label: "Implement", value: "impl" },
+              { label: "QA", value: "qa" },
+            ]}
             value={logTab}
             onChange={(v) => setLogTab(v as ArchiveLogTab)}
             fontSize="11px"

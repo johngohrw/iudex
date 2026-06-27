@@ -129,9 +129,13 @@ export default function Tickets({
         <span className={s.headerDot} />
         <span className={s.headerTitle}>Tickets</span>
         <TabSwitcher
-          tabs={["Board", "Table", "Graph"]}
-          value={mode[0].toUpperCase() + mode.slice(1)}
-          onChange={(v) => setMode(v.toLowerCase() as typeof mode)}
+          tabs={[
+            { label: "Board", value: "board" },
+            { label: "Table", value: "table" },
+            { label: "Graph", value: "graph" },
+          ]}
+          value={mode}
+          onChange={setMode}
           style={{ marginLeft: 4 }}
         />
         <span className={s.headerSpacer} />
