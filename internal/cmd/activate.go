@@ -100,7 +100,7 @@ func runActivate(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(out, "✓ activated %s\n", id)
 	fmt.Fprintf(out, "  worktree: %s\n", filepath.Join(workspace.Dir, "worktrees", id))
 	fmt.Fprintln(out, "  spawn the implementation agent:")
-	fprintSpawnHint(out, ctx.Root, ctx.Config, id, "impl.md")
+	fprintSpawnHint(out, ctx.Root, ctx.GlobalConfig, id, "impl.md")
 	return nil
 }
 

@@ -6,6 +6,7 @@
 package workspace
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -121,6 +122,53 @@ func LoadConfig(root string) (*Config, error) {
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
+	}
+	cfg.migrate()
+	return &cfg, nil
+}
+
+// GlobalDir returns the per-user iudex directory (~/.iudex). It holds
+// machine-level config — the agent-command pool — shared across every
+// workspace, alongside the GUI's settings.json.
+func GlobalDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, Dir), nil
+}
+
+// GlobalConfigFile returns ~/.iudex/config.yml.
+func GlobalConfigFile() (string, error) {
+	dir, err := GlobalDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "config.yml"), nil
+}
+
+// LoadGlobalConfig reads the per-user ~/.iudex/config.yml, the single source of
+// the agent-command pool (agent_commands/agent_roles) for every workspace. A
+// missing file is not an error — it yields an empty config (an empty pool),
+// which callers treat as "not configured yet" and surface for first-run setup.
+// The legacy single agent_command is folded into the pool on load. Only the
+// agent fields are meaningful here; the scalar fields are workspace-scoped and
+// ignored in the global file.
+func LoadGlobalConfig() (*Config, error) {
+	path, err := GlobalConfigFile()
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return &Config{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("parse global config: %w", err)
 	}
 	cfg.migrate()
 	return &cfg, nil

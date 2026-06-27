@@ -109,6 +109,6 @@ func runQAReject(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "  spawn the implementation agent (it will read .task/review.md):")
-	fprintSpawnHint(out, ctx.Root, ctx.Config, id, "impl.md")
+	fprintSpawnHint(out, ctx.Root, ctx.GlobalConfig, id, "impl.md")
 	return nil
 }

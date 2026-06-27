@@ -12,22 +12,30 @@ import (
 )
 
 // wsContext bundles the resolved workspace, its config, and the state derived
-// from its event log, which most commands need together.
+// from its event log, which most commands need together. GlobalConfig holds the
+// machine-level agent-command pool (~/.iudex/config.yml) — the single source for
+// resolving any role's command, independent of the workspace.
 type wsContext struct {
-	Root     string
-	Config   *workspace.Config
-	Events   []events.Event
-	Statuses map[string]*ticket.Status
+	Root         string
+	Config       *workspace.Config
+	GlobalConfig *workspace.Config
+	Events       []events.Event
+	Statuses     map[string]*ticket.Status
 }
 
-// loadContext finds the workspace from the current directory, loads its config,
-// reads its event log, and derives ticket statuses.
+// loadContext finds the workspace from the current directory, loads its config
+// and the global agent-command pool, reads its event log, and derives ticket
+// statuses.
 func loadContext() (*wsContext, error) {
 	root, err := workspace.Find("")
 	if err != nil {
 		return nil, err
 	}
 	cfg, err := workspace.LoadConfig(root)
+	if err != nil {
+		return nil, err
+	}
+	global, err := workspace.LoadGlobalConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +47,7 @@ func loadContext() (*wsContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &wsContext{Root: root, Config: cfg, Events: evs, Statuses: statuses}, nil
+	return &wsContext{Root: root, Config: cfg, GlobalConfig: global, Events: evs, Statuses: statuses}, nil
 }
 
 // transition checks the ticket exists and that trigger t is legal from its
@@ -79,20 +87,21 @@ func resolveTicket(root string, args []string) (string, error) {
 
 // spawnCommand builds a ready-to-paste agent command that drops the user into a
 // ticket's worktree with the given prompt template. iudex never runs it. The
-// agent binary is resolved per role from the config's command pool; the prompt
-// file identifies the role (review.md → qa, otherwise impl).
+// agent binary is resolved per role from the global command pool
+// (~/.iudex/config.yml); the prompt file identifies the role (review.md → qa,
+// otherwise impl).
 //
 // It errors when no command resolves rather than emitting one with an empty
 // binary slot: `cd … && "$(cat prompt)"` would make the shell execute the prompt
 // text itself (a footgun seen when an old iudex reads a pool-format config).
-func spawnCommand(root string, cfg *workspace.Config, id, promptFile string) (string, error) {
+func spawnCommand(root string, global *workspace.Config, id, promptFile string) (string, error) {
 	role := "impl"
 	if promptFile == "review.md" {
 		role = "qa"
 	}
-	agent := cfg.AgentCommandForRole(role)
+	agent := global.AgentCommandForRole(role)
 	if agent == "" {
-		return "", fmt.Errorf("no agent command configured for role %q — add an entry under agent_commands in .iudex/config.yml", role)
+		return "", fmt.Errorf("no agent command configured for role %q — add an entry under agent_commands in ~/.iudex/config.yml", role)
 	}
 	wt := workspace.Worktree(root, id)
 	prompt := filepath.Join(workspace.PromptsDir(root), promptFile)
@@ -101,8 +110,8 @@ func spawnCommand(root string, cfg *workspace.Config, id, promptFile string) (st
 
 // fprintSpawnHint writes the indented spawn command for a "next steps" block, or
 // a short note when no agent command is configured — never a broken command.
-func fprintSpawnHint(out io.Writer, root string, cfg *workspace.Config, id, promptFile string) {
-	if c, err := spawnCommand(root, cfg, id, promptFile); err == nil {
+func fprintSpawnHint(out io.Writer, root string, global *workspace.Config, id, promptFile string) {
+	if c, err := spawnCommand(root, global, id, promptFile); err == nil {
 		fmt.Fprintf(out, "    %s\n", c)
 	} else {
 		fmt.Fprintf(out, "    (%v)\n", err)

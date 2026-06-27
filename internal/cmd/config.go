@@ -53,11 +53,29 @@ func runConfig(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	ctx, err := loadContext()
+
+	// The agent-command pool is machine-level (~/.iudex/config.yml); the scalars
+	// are workspace-scoped. So this reads the global pool always, and the
+	// workspace scalars only when run inside a workspace — letting `config --json`
+	// (the GUI's read path) work with no project open, returning the global pool
+	// with empty scalars.
+	global, err := workspace.LoadGlobalConfig()
 	if err != nil {
 		return err
 	}
-	cfg := ctx.Config
+	scalars := &workspace.Config{}
+	if root, ferr := workspace.Find(""); ferr == nil {
+		wc, lerr := workspace.LoadConfig(root)
+		if lerr != nil {
+			return lerr
+		}
+		scalars = wc
+	}
+	// Merged view: scalars from the workspace, pool from the global config.
+	merged := *scalars
+	merged.AgentCommands = global.AgentCommands
+	merged.AgentRoles = global.AgentRoles
+	cfg := &merged
 
 	if asJSON {
 		return runConfigJSON(cmd, cfg)

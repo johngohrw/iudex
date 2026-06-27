@@ -4,12 +4,15 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"iudex/internal/workspace"
 )
 
 // newAgentCommandCmd prints the agent command resolved for a role from the
-// config's pool. It is the single source of the role->command rule (the same
-// resolution `spawn` uses internally), exposed for callers that build their own
-// spawns for non-ticket roles — e.g. the GUI's resolve/idea agents.
+// global pool (~/.iudex/config.yml). It is the single source of the role->command
+// rule (the same resolution `spawn` uses internally), exposed for callers that
+// build their own spawns for non-ticket roles — e.g. the GUI's resolve/idea
+// agents. The pool is machine-level, so this runs without a workspace.
 //
 // The role is an opaque config key: this command looks it up in agent_roles and
 // the pool and knows nothing about what any particular role means or does. Like
@@ -26,13 +29,13 @@ func newAgentCommandCmd() *cobra.Command {
 
 func runAgentCommand(cmd *cobra.Command, args []string) error {
 	role := args[0]
-	ctx, err := loadContext()
+	global, err := workspace.LoadGlobalConfig()
 	if err != nil {
 		return err
 	}
-	command := ctx.Config.AgentCommandForRole(role)
+	command := global.AgentCommandForRole(role)
 	if command == "" {
-		return fmt.Errorf("no agent command configured for role %q — add an entry under agent_commands in .iudex/config.yml", role)
+		return fmt.Errorf("no agent command configured for role %q — add an entry under agent_commands in ~/.iudex/config.yml", role)
 	}
 	fmt.Fprintln(cmd.OutOrStdout(), command)
 	return nil

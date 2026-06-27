@@ -144,7 +144,7 @@ func runHumanQAReject(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(out, "  note: no --reason given; add guidance to .task/review.md so the next session has feedback")
 	}
 	fmt.Fprintln(out, "  spawn the implementation agent (it will read .task/review.md):")
-	fprintSpawnHint(out, ctx.Root, ctx.Config, id, "impl.md")
+	fprintSpawnHint(out, ctx.Root, ctx.GlobalConfig, id, "impl.md")
 	return nil
 }
 

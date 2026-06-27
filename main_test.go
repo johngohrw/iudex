@@ -16,7 +16,13 @@ import (
 var (
 	iudexBin      string
 	gitConfigPath string
+	testHome      string
 )
+
+// defaultGlobalConfig is the agent-command pool every test runs against unless it
+// overrides ~/.iudex/config.yml via writeGlobalConfig. The pool is machine-level
+// now, so it lives under a hermetic HOME rather than each workspace's config.
+const defaultGlobalConfig = "agent_commands:\n  - name: claude\n    command: claude\n    default: true\n"
 
 // TestMain builds the binary once and writes a hermetic git config so the CLI
 // tests don't depend on the machine's global git settings.
@@ -40,6 +46,16 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
+	// Hermetic HOME so the global agent-command pool (~/.iudex/config.yml) doesn't
+	// depend on the dev/CI machine. Seed it with the default pool.
+	testHome = filepath.Join(tmp, "home")
+	if err := os.MkdirAll(filepath.Join(testHome, ".iudex"), 0o755); err != nil {
+		panic(err)
+	}
+	if err := os.WriteFile(filepath.Join(testHome, ".iudex", "config.yml"), []byte(defaultGlobalConfig), 0o644); err != nil {
+		panic(err)
+	}
+
 	os.Exit(m.Run())
 }
 
@@ -49,6 +65,7 @@ func iudex(t *testing.T, workdir string, args ...string) (string, error) {
 	cmd := exec.Command(iudexBin, args...)
 	cmd.Dir = workdir
 	cmd.Env = append(os.Environ(),
+		"HOME="+testHome,
 		"GIT_CONFIG_GLOBAL="+gitConfigPath,
 		"GIT_CONFIG_SYSTEM="+os.DevNull,
 		"GIT_AUTHOR_NAME=iudex test", "GIT_AUTHOR_EMAIL=test@iudex.test",
@@ -136,15 +153,25 @@ func writeConfig(t *testing.T, ws, body string) {
 	}
 }
 
+// writeGlobalConfig overwrites the hermetic ~/.iudex/config.yml (the agent-command
+// pool) for one test, restoring the default pool afterward so tests stay isolated.
+func writeGlobalConfig(t *testing.T, body string) {
+	t.Helper()
+	path := filepath.Join(testHome, ".iudex", "config.yml")
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = os.WriteFile(path, []byte(defaultGlobalConfig), 0o644)
+	})
+}
+
 // TestCLISpawnPerRole verifies `iudex spawn` resolves the agent binary per role
 // from the command pool: an unmapped role (impl) uses the default entry, while a
 // mapped role (qa) uses its entry.
 func TestCLISpawnPerRole(t *testing.T) {
 	ws := newWorkspace(t)
-	writeConfig(t, ws, `main_branch: main
-max_active: 4
-qa_reject_limit: 3
-agent_commands:
+	writeGlobalConfig(t, `agent_commands:
   - name: pi
     command: pi
     default: true
@@ -152,8 +179,6 @@ agent_commands:
     command: claude
 agent_roles:
   qa: claude
-merge_strategy: no-ff
-branch_prefix: "work/"
 `)
 	author(t, ws, "t1")
 	mustRun(t, ws, "queue", "t1")
@@ -172,13 +197,7 @@ branch_prefix: "work/"
 // into the pool as the default on load, so old workspaces still resolve.
 func TestCLISpawnLegacyAgentCommand(t *testing.T) {
 	ws := newWorkspace(t)
-	writeConfig(t, ws, `main_branch: main
-max_active: 4
-qa_reject_limit: 3
-agent_command: claude
-merge_strategy: no-ff
-branch_prefix: "work/"
-`)
+	writeGlobalConfig(t, "agent_command: claude\n")
 	author(t, ws, "t1")
 	mustRun(t, ws, "queue", "t1")
 	mustRun(t, ws, "activate", "t1")
@@ -192,20 +211,48 @@ branch_prefix: "work/"
 // prompt) when no agent command resolves.
 func TestCLISpawnNoAgentCommand(t *testing.T) {
 	ws := newWorkspace(t)
-	writeConfig(t, ws, `main_branch: main
-max_active: 4
-qa_reject_limit: 3
-agent_commands: []
-agent_roles: {}
-merge_strategy: no-ff
-branch_prefix: "work/"
-`)
+	writeGlobalConfig(t, "agent_commands: []\nagent_roles: {}\n")
 	author(t, ws, "t1")
 	mustRun(t, ws, "queue", "t1")
 	mustRun(t, ws, "activate", "t1")
 	out := mustFail(t, ws, "spawn", "t1")
 	if !strings.Contains(out, "no agent command configured") {
 		t.Errorf("expected a clear no-agent-command error; got: %s", out)
+	}
+}
+
+// TestCLIAgentCommandNoWorkspace verifies `agent-command` resolves from the
+// global pool with no workspace open — the GUI's resolve/idea spawn path and the
+// onboarding read both rely on it working outside a project.
+func TestCLIAgentCommandNoWorkspace(t *testing.T) {
+	dir := t.TempDir() // not an iudex workspace
+	if out := mustRun(t, dir, "agent-command", "impl"); strings.TrimSpace(out) != "claude" {
+		t.Errorf("agent-command outside a workspace should resolve the global default; got: %q", out)
+	}
+}
+
+// TestCLIConfigJSONNoWorkspace verifies `config --json` works outside a
+// workspace, emitting the global agent pool with empty scalars — the GUI reads
+// the machine-level pool this way before any project is open.
+func TestCLIConfigJSONNoWorkspace(t *testing.T) {
+	dir := t.TempDir() // not an iudex workspace
+	out := mustRun(t, dir, "config", "--json")
+	var jc struct {
+		MainBranch    string `json:"mainBranch"`
+		AgentCommands []struct {
+			Name    string `json:"name"`
+			Command string `json:"command"`
+			Default bool   `json:"default"`
+		} `json:"agentCommands"`
+	}
+	if err := json.Unmarshal([]byte(out), &jc); err != nil {
+		t.Fatalf("config --json outside a workspace should emit valid JSON: %v\n%s", err, out)
+	}
+	if jc.MainBranch != "" {
+		t.Errorf("scalars should be empty with no workspace; got mainBranch=%q", jc.MainBranch)
+	}
+	if len(jc.AgentCommands) != 1 || jc.AgentCommands[0].Command != "claude" {
+		t.Errorf("expected the global pool (claude); got: %+v", jc.AgentCommands)
 	}
 }
 
