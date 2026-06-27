@@ -41,8 +41,9 @@ Requires Go 1.22+. Dependencies are just `github.com/spf13/cobra` and `gopkg.in/
 ```
 <your-project>/                 # existing git repo = canonical "main" worktree
 ├── .iudex/                      # all iudex state (gitignored as a whole)
-│   ├── config.yml               # main_branch, max_active, qa_reject_limit, agent_commands, agent_roles,
+│   ├── config.yml               # main_branch, max_active, qa_reject_limit,
 │   │                            #   merge_strategy, merge_message_template, branch_prefix
+│   │                            #   (the agent-command pool is machine-level: ~/.iudex/config.yml)
 │   ├── prompts/
 │   │   ├── impl.md              # injected into impl spawn commands
 │   │   └── review.md            # injected into QA spawn commands
@@ -142,7 +143,7 @@ failed --retry-------------------> active  [counter reset]
 | `iudex review <id>`                   | Read-only: print brief, log, diff, review, state, next actions                                                                                                                                                                      |
 | `iudex status [--all] [--json]`       | Tickets grouped by state; queued annotated ready/blocked; done/removed hidden unless `--all`. `--json` emits a machine-readable object (`{mainBranch,maxActive,qaRejectLimit,tickets[]}`, always all tickets) — the GUI's read path |
 | `iudex config [--json]`               | Print the workspace config; `--json` emits the post-migrate config (scalars + the agent pool/roles) — a GUI read path alongside `status --json`                                                                                      |
-| `iudex agent-command <role>`          | Print the agent command resolved for a role (opaque key → pool entry → default); errors on an empty pool. Single-sources the role→command rule for non-ticket spawns (the GUI's resolve/idea agents)                                |
+| `iudex agent-command <role>`          | Print the agent command resolved for a role from the **global** pool `~/.iudex/config.yml` (opaque key → pool entry → default); errors on an empty pool; needs no workspace. Single-sources the role→command rule for non-ticket spawns (the GUI's resolve/idea agents)                                |
 
 Worktree-scoped commands (`finish`, `qa`, `spawn`) infer the ticket from the current directory when run inside a worktree; an explicit id always overrides.
 
@@ -194,18 +195,35 @@ iudex/
 
 ---
 
-## Configuration (`.iudex/config.yml`)
+## Configuration
+
+### Workspace (`.iudex/config.yml`)
 
 | Field                    | Meaning                                                             |
 | ------------------------ | ------------------------------------------------------------------- |
 | `main_branch`            | Canonical merge target (set to the repo's current branch at init)   |
 | `max_active`             | Cap on tickets in the `active` state (`0` = unlimited)              |
 | `qa_reject_limit`        | QA rejections before a ticket becomes `failed` (`<= 0` = unlimited) |
-| `agent_commands`         | Pool of named agent commands (`{name,command,default}`); one is `default: true`. A legacy single `agent_command` is folded into the pool on load |
-| `agent_roles`            | Maps a role (`impl`/`qa`/`resolve`/`idea`/…) to a pool entry's name; unmapped roles use the default. Resolved by `AgentCommandForRole` (CLI `spawn`/`agent-command`) |
 | `merge_strategy`         | `no-ff` (default) or `squash`                                       |
 | `merge_message_template` | Merge commit message; `{{.Ticket}}` is substituted                  |
 | `branch_prefix`          | Per-ticket branch prefix (e.g. `work/`)                             |
+
+### Global / machine-level (`~/.iudex/config.yml`)
+
+The agent-command pool is **machine-level**, shared across every workspace (an
+agent CLI is a property of your toolchain, not a project), and lives in
+`~/.iudex/config.yml` — the single per-user config file (it also carries the
+GUI's `iudex_bin` path, which the CLI ignores). `iudex spawn`,
+`agent-command`, and `config --json` resolve it from here regardless of cwd;
+`config --json` works with no workspace open. It is **not** written by `init`,
+and resolution **errors on an empty pool** (no built-in default) — the GUI's
+first-run onboarding popup guides setup. (Legacy: pre-pool workspaces that still
+carry these keys in `.iudex/config.yml` are ignored; re-add them globally.)
+
+| Field                    | Meaning                                                             |
+| ------------------------ | ------------------------------------------------------------------- |
+| `agent_commands`         | Pool of named agent commands (`{name,command,default}`); one is `default: true`. A legacy single `agent_command` is folded into the pool on load |
+| `agent_roles`            | Maps a role (`impl`/`qa`/`resolve`/`idea`/…) to a pool entry's name; unmapped roles use the default. Resolved by `AgentCommandForRole` (CLI `spawn`/`agent-command`) |
 
 ---
 
@@ -226,7 +244,8 @@ A native **Tauri desktop client** that drives this CLI the way a git client driv
 
 **The core invariant:** the GUI holds **no authoritative state**. It **reads** derived truth via `iudex status --json`, **writes** by shelling every mutation through the `iudex` binary, and watches `.iudex/events.jsonl` as a _doorbell_ (re-reads on any change). It never reimplements `Derive` (the state machine stays single-sourced in the CLI), so GUI and CLI cannot diverge. It does own the one thing the CLI won't — **agent process supervision** — via a tmux session pool.
 
-- **Upstream read-path commands it binds to:** `iudex status --json` (tickets), `iudex config --json` (config + agent pool/roles), and `iudex agent-command <role>` (role→command resolution for its resolve/idea spawns). The GUI shells these rather than re-parsing `.iudex/` — so the schema, the legacy-`agent_command` migration, and the resolution rule stay single-sourced in the CLI (it previously kept Rust copies; those are gone). Git reads it needs (worktree diffs, the merge-preflight via `git merge-tree`) shell `git -C <dir>` directly from the GUI's Rust backend — plain plumbing, not state-machine logic, so they deliberately stay out of the CLI.
+- **Upstream read-path commands it binds to:** `iudex status --json` (tickets), `iudex config --json` (workspace scalars + the global agent pool/roles), and `iudex agent-command <role>` (role→command resolution for its resolve/idea spawns). The GUI shells these rather than re-parsing `.iudex/` — so the schema, the legacy-`agent_command` migration, and the resolution rule stay single-sourced in the CLI (it previously kept Rust copies; those are gone). Git reads it needs (worktree diffs, the merge-preflight via `git merge-tree`) shell `git -C <dir>` directly from the GUI's Rust backend — plain plumbing, not state-machine logic, so they deliberately stay out of the CLI.
+- **Settings scopes & first-run onboarding:** the **GLOBAL** Settings tabs (the machine-level **Agent commands** pool and the **iudex CLI** binary path — both in the single per-user `~/.iudex/config.yml`) work with no workspace open; **WORKSPACE** tabs (General, Prompts) need one. The GUI reads the agent pool through the CLI (`config --json`) but reads its `iudex_bin` key directly (line-based) — it can't shell the CLI to discover the CLI. Because the agent pool is required for any spawn and resolution errors on an empty pool, a dismissible **onboarding popup** (`views/Onboarding.tsx`, reusing the GLOBAL `AgentsTab`/`CliTab`) auto-opens when the pool is empty — driven by live state, not a persisted "seen" flag. An app-wide amber banner and a splash button also open it. (The hard prerequisite — a totally unresolvable `iudex` binary — stays its own blocking screen, since the GUI shells everything through the CLI.)
 - **Seven views:** Dashboard, Terminal, Tickets, Agents, Worktrees, Review (preflighted approve & merge), Settings.
 - **Status:** built on branch `feat/gui-read-path` (off `main`, not yet merged). The GUI evolves independently; treat `gui/` changes as scoped to that project.
 
