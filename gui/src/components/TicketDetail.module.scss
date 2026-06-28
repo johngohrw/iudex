@@ -78,61 +78,6 @@
   }
 }
 
-// ── Actions menu ──────────────────────────────────────
-.menuWrap {
-  position: relative;
-  flex-shrink: 0;
-}
-.menuBtn {
-  border: none;
-  background: transparent;
-  color: t.$text-muted;
-  cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
-  font-size: 16px;
-  line-height: 1;
-  padding: 0 4px;
-
-  &:hover {
-    color: t.$text;
-  }
-}
-.menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  min-width: 150px;
-  background: t.$panel-mid;
-  border: 1px solid t.$divider-mid;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  z-index: 10;
-}
-.menuItem {
-  display: block;
-  width: 100%;
-  padding: 6px 12px;
-  border: none;
-  background: transparent;
-  color: t.$text;
-  text-align: left;
-  cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
-  font-size: 12px;
-
-  &:hover {
-    background: t.$surface-c8;
-  }
-  &.danger {
-    color: t.$danger;
-  }
-  &:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-}
-
 // ── Scrollable body ───────────────────────────────────
 .body {
   flex: 1;
@@ -301,7 +246,7 @@
   word-break: break-word;
 }
 
-// ── Save footer (queued only) ─────────────────────────
+// ── Footer: state actions + autosave status ───────────
 .footer {
   padding: 8px 10px;
   border-top: 1px solid t.$divider-mid;
@@ -310,29 +255,37 @@
   gap: 10px;
   flex-shrink: 0;
   background: t.$dialog;
+  min-height: 16px;
 }
-.saveBtn {
-  height: 22px;
-  padding: 0 14px;
-  border: 1px solid t.$amber-border;
-  background: t.$amber;
+.saveStatus {
+  font-size: 11px;
+  color: #2a7a86;
+}
+.footerActions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+.footerBtn {
+  height: 24px;
+  padding: 0 12px;
+  border: 1px solid t.$divider-mid;
+  background: t.$panel-mid;
   color: t.$text;
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
   font-size: 12px;
-  font-weight: 500;
   font-family: t.$font-ui;
 
   &:hover:not(:disabled) {
-    background: #f6c659;
+    background: t.$surface-c8;
   }
   &:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: default;
   }
-}
-.saveStatus {
-  font-size: 11px;
-  color: #2a7a86;
+  &.danger {
+    color: t.$danger;
+  }
 }

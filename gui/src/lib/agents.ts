@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as api from "./api";
 import type { Resolution, Session, Workspace } from "../types";
 
@@ -76,7 +76,11 @@ export function synthStatus(opts: {
   const { dead, exitCode, role, ticketState, quietMs } = opts;
   // The state in which this role's agent is the one doing the work.
   const expected =
-    role === "qa" ? "pending-qa" : role === "resolve" ? "pending-human-qa" : "active";
+    role === "qa"
+      ? "pending-qa"
+      : role === "resolve"
+        ? "pending-human-qa"
+        : "active";
   // Ticket has moved past the role's phase — this agent is superseded.
   if (ticketState !== expected) return "done";
   if (dead) {
@@ -107,13 +111,18 @@ export function useAgentStatuses(
               api.capturePane(a.name, 200),
               api.sessionStatus(a.name),
             ]);
-            const act = activity.current[a.name] ?? { prev: "", last: Date.now() };
+            const act = activity.current[a.name] ?? {
+              prev: "",
+              last: Date.now(),
+            };
             if (out !== act.prev) {
               act.prev = out;
               act.last = Date.now();
             }
             activity.current[a.name] = act;
-            const ticket = a.ticket ? ws.tickets.find((t) => t.id === a.ticket) : undefined;
+            const ticket = a.ticket
+              ? ws.tickets.find((t) => t.id === a.ticket)
+              : undefined;
             const quietMs = Date.now() - act.last;
 
             // Resolver agents derive their outcome from the merge state, not just
@@ -121,7 +130,9 @@ export function useAgentStatuses(
             if (a.role === "resolve") {
               let resolution: Resolution | null = null;
               if (ticket?.worktree) {
-                resolution = await api.readResolution(ticket.worktree).catch(() => null);
+                resolution = await api
+                  .readResolution(ticket.worktree)
+                  .catch(() => null);
               }
               return [
                 a.name,
@@ -167,37 +178,43 @@ export function useAgentStatuses(
 
 // Ticket titles keyed by ticket id (e.g. `t3`), covering queued tickets too:
 // the backend reads the worktree brief for active+ tickets and the queue file
-// for queued ones (which have no worktree). Re-runs on the `ws` doorbell.
-export function useTicketTitles(root: string, ws: Workspace): Record<string, string> {
+// for queued ones (which have no worktree). Re-runs on the `ws` doorbell, and
+// exposes `refetch` for writes that change a title without an event (e.g. an
+// edited queue brief, which the doorbell never sees).
+export function useTicketTitles(
+  root: string,
+  ws: Workspace,
+): { titles: Record<string, string>; refetch: () => void } {
   const [titles, setTitles] = useState<Record<string, string>>({});
 
-  useEffect(() => {
+  const refetch = useCallback(() => {
     if (!root) {
       setTitles({});
       return;
     }
-    let alive = true;
     api
       .ticketTitles(root)
       .then((rows) => {
-        if (!alive) return;
         const m: Record<string, string> = {};
         for (const r of rows) m[r.id] = r.title;
         setTitles(m);
       })
-      .catch(() => alive && setTitles({}));
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [root, ws]);
+      .catch(() => setTitles({}));
+  }, [root]);
 
-  return titles;
+  // Doorbell path: re-read whenever the workspace snapshot changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(refetch, [root, ws]);
+
+  return { titles, refetch };
 }
 
 // Ticket titles for a set of worktree paths, keyed by path — the Agents card
 // labels. Re-runs when the worktree set or `ws` (doorbell) changes.
-export function useBriefTitles(worktrees: string[], ws: Workspace): Record<string, string> {
+export function useBriefTitles(
+  worktrees: string[],
+  ws: Workspace,
+): Record<string, string> {
   const [titles, setTitles] = useState<Record<string, string>>({});
   const key = worktrees.join("|");
 

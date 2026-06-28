@@ -37,7 +37,7 @@ export default function Tickets({
 
   // Human titles keyed by ticket id — covers queued tickets (no worktree yet),
   // whose brief still lives in .iudex/queue/, as well as active+ worktree briefs.
-  const titles = useTicketTitles(root, ws);
+  const { titles, refetch: refetchTitles } = useTicketTitles(root, ws);
   const titleOf = (t: Ticket) => titles[t.id] || "";
 
   // Tickets shown across all three views: the live working set. Terminal
@@ -271,6 +271,7 @@ export default function Tickets({
               ws={ws}
               onClose={() => setSelId(null)}
               onJumpToAgent={onJumpToAgent}
+              onSaved={refetchTitles}
             />
           </div>
         )}

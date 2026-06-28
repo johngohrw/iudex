@@ -1591,22 +1591,22 @@ fn brief_titles(worktrees: Vec<String>) -> Vec<WorktreeTitle> {
         .collect()
 }
 
-/// First non-empty, non-heading line of a worktree's brief — the ticket title.
+/// The ticket title from a worktree's brief — its first `# ` heading.
 fn brief_title(worktree: &str) -> String {
     title_from_brief(&Path::new(worktree).join(".task").join("brief.md"))
 }
 
-/// First non-empty, non-heading line of a brief markdown file — the ticket title.
-/// Works for both an active ticket's worktree `.task/brief.md` and a queued
-/// ticket's `.iudex/queue/tN.md` (same format; the queue file becomes the brief).
+/// The ticket title: text of the brief's first `# ` heading — matching the GUI
+/// detail panel's `parseBrief`, so the list rows, Agents cards, and Review rail
+/// all show the same title the panel does. Works for both an active ticket's
+/// worktree `.task/brief.md` and a queued ticket's `.iudex/queue/tN.md` (same
+/// format; the queue file becomes the brief).
 fn title_from_brief(path: &Path) -> String {
     let text = std::fs::read_to_string(path).unwrap_or_default();
     for line in text.lines() {
-        let l = line.trim();
-        if l.is_empty() || l.starts_with('#') {
-            continue;
+        if let Some(rest) = line.strip_prefix("# ") {
+            return rest.trim().to_string();
         }
-        return l.to_string();
     }
     String::new()
 }

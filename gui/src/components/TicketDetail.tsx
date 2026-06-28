@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as api from "../lib/api";
 import type { Ticket, Workspace } from "../types";
 import { useTicketDocs } from "../lib/tickets";
@@ -59,12 +59,14 @@ export default function TicketDetail({
   ws,
   onClose,
   onJumpToAgent,
+  onSaved,
 }: {
   root: string;
   ticket: Ticket;
   ws: Workspace;
   onClose: () => void;
   onJumpToAgent: (sessionName: string) => void;
+  onSaved?: () => void;
 }) {
   const { docs, loading } = useTicketDocs(root, ticket);
   const { sessions } = useSessions();
@@ -80,51 +82,59 @@ export default function TicketDetail({
   const parsed = docs ? parseBrief(docs.brief) : { title: "", body: "" };
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
-  const [saveStatus, setSaveStatus] = useState<"" | "saved" | "error">("");
-  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<
+    "" | "saving" | "saved" | "error"
+  >("");
   const [logTab, setLogTab] = useState<LogTab>("impl");
+  // The brief content last persisted; autosave skips writes that match it, so a
+  // freshly-loaded ticket — and the trailing debounce after a blur — don't write.
+  const lastSaved = useRef("");
 
-  // Sync edit fields when docs load/change (queued only).
+  // Sync edit fields when docs load/change (queued only); reset the autosave
+  // baseline so the load itself isn't mistaken for a pending edit.
   useEffect(() => {
     if (isQueued && docs) {
       setEditTitle(parsed.title);
       setEditBody(parsed.body);
+      lastSaved.current = serializeBrief(parsed.title, parsed.body);
+      setSaveStatus("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docs, ticket.id]);
 
-  const save = async () => {
-    setSaving(true);
-    setSaveStatus("");
+  // Persist the current edits unless they already match what's on disk.
+  const save = useCallback(async () => {
+    const content = serializeBrief(editTitle, editBody);
+    if (content === lastSaved.current) return;
+    setSaveStatus("saving");
     try {
-      await api.writeQueueBrief(
-        root,
-        ticket.id,
-        serializeBrief(editTitle, editBody),
-      );
+      await api.writeQueueBrief(root, ticket.id, content);
+      lastSaved.current = content;
       setSaveStatus("saved");
+      onSaved?.(); // refresh the list views' titles (no event → no doorbell)
     } catch {
       setSaveStatus("error");
-    } finally {
-      setSaving(false);
     }
-  };
+  }, [root, ticket.id, editTitle, editBody, onSaved]);
 
-  // Actions menu
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  // Autosave: fire 1.5s after the last keystroke (each edit resets the timer).
+  // Blur flushes immediately via onBlur on the fields below; both go through
+  // `save`, which no-ops when nothing changed, so the orderings can't double-write.
   useEffect(() => {
-    if (!menuOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [menuOpen]);
+    if (!isQueued || !docs) return;
+    if (serializeBrief(editTitle, editBody) === lastSaved.current) return;
+    const t = setTimeout(save, 1500);
+    return () => clearTimeout(t);
+  }, [editTitle, editBody, isQueued, docs, save]);
 
+  const dirty =
+    isQueued &&
+    !!docs &&
+    serializeBrief(editTitle, editBody) !== lastSaved.current;
+
+  // State-aware actions (rendered in the footer).
   const [actionBusy, setActionBusy] = useState(false);
   const act = async (fn: () => Promise<unknown>, closeAfter = false) => {
-    setMenuOpen(false);
     setActionBusy(true);
     try {
       await fn();
@@ -150,42 +160,20 @@ export default function TicketDetail({
         </button>
       </div>
 
-      {/* Title + actions menu */}
+      {/* Title */}
       <div className={s.titleRow}>
         {isQueued ? (
           <input
             className={s.titleInput}
             value={editTitle}
-            onChange={(e) => {
-              setEditTitle(e.target.value);
-              setSaveStatus("");
-            }}
+            onChange={(e) => setEditTitle(e.target.value)}
+            onBlur={save}
             placeholder="ticket title"
           />
         ) : (
           <span className={s.titleText}>
             {displayTitle || <span className="muted">(no title)</span>}
           </span>
-        )}
-        {!isTerminal && (
-          <div className={s.menuWrap} ref={menuRef}>
-            <button
-              className={s.menuBtn}
-              onClick={() => setMenuOpen((o) => !o)}
-              title="actions"
-            >
-              ⋮
-            </button>
-            {menuOpen && (
-              <ActionsMenu
-                ticket={ticket}
-                root={root}
-                busy={actionBusy}
-                onAct={act}
-                onJumpToAgent={onJumpToAgent}
-              />
-            )}
-          </div>
         )}
       </div>
 
@@ -200,15 +188,13 @@ export default function TicketDetail({
               <textarea
                 className={s.briefTextarea}
                 value={editBody}
-                onChange={(e) => {
-                  setEditBody(e.target.value);
-                  setSaveStatus("");
-                }}
+                onChange={(e) => setEditBody(e.target.value)}
+                onBlur={save}
                 placeholder="markdown brief…"
                 rows={6}
               />
-            ) : docs?.brief?.trim() ? (
-              <pre className={s.briefDoc}>{docs.brief}</pre>
+            ) : parsed.body.trim() ? (
+              <pre className={s.briefDoc}>{parsed.body}</pre>
             ) : (
               <span className={s.placeholder}>(no brief)</span>
             )}
@@ -320,18 +306,31 @@ export default function TicketDetail({
         </Section>
       </div>
 
-      {/* Save footer — queued only */}
-      {isQueued && (
+      {/* Footer: state actions + autosave status (queued, debounced + blur) */}
+      {!isTerminal && (
         <div className={s.footer}>
-          <button className={s.saveBtn} disabled={saving} onClick={save}>
-            {saving ? "Saving…" : "Save"}
-          </button>
-          {saveStatus === "saved" && (
-            <span className={s.saveStatus}>✓ saved</span>
+          {isQueued && (
+            <span className={s.saveStatus}>
+              {saveStatus === "saving"
+                ? "saving…"
+                : saveStatus === "error"
+                  ? "✗ save failed"
+                  : dirty
+                    ? "unsaved…"
+                    : saveStatus === "saved"
+                      ? "✓ saved"
+                      : ""}
+            </span>
           )}
-          {saveStatus === "error" && (
-            <span className={`${s.saveStatus} error`}>✗ save failed</span>
-          )}
+          <div className={s.footerActions}>
+            <FooterActions
+              ticket={ticket}
+              root={root}
+              busy={actionBusy}
+              onAct={act}
+              onJumpToAgent={onJumpToAgent}
+            />
+          </div>
         </div>
       )}
     </div>
@@ -353,7 +352,7 @@ function Section({
   );
 }
 
-function ActionsMenu({
+function FooterActions({
   ticket,
   root,
   busy,
@@ -375,10 +374,10 @@ function ActionsMenu({
     });
 
   return (
-    <div className={s.menu}>
+    <>
       {ticket.state === "queued" && ticket.ready && (
         <button
-          className={s.menuItem}
+          className={s.footerBtn}
           disabled={busy}
           onClick={() =>
             onAct(async () => {
@@ -388,20 +387,20 @@ function ActionsMenu({
             })
           }
         >
-          Spawn Agent
+          Spawn agent
         </button>
       )}
       {ticket.state === "active" && (
         <>
           <button
-            className={s.menuItem}
+            className={s.footerBtn}
             disabled={busy}
             onClick={() => run(["finish", ticket.id])}
           >
             Finish
           </button>
           <button
-            className={s.menuItem}
+            className={s.footerBtn}
             disabled={busy}
             onClick={() => spawnAndJump("impl")}
           >
@@ -411,7 +410,7 @@ function ActionsMenu({
       )}
       {ticket.state === "pending-qa" && (
         <button
-          className={s.menuItem}
+          className={s.footerBtn}
           disabled={busy}
           onClick={() => spawnAndJump("qa")}
         >
@@ -420,7 +419,7 @@ function ActionsMenu({
       )}
       {ticket.state === "failed" && (
         <button
-          className={s.menuItem}
+          className={s.footerBtn}
           disabled={busy}
           onClick={() => run(["retry", ticket.id])}
         >
@@ -428,12 +427,12 @@ function ActionsMenu({
         </button>
       )}
       <button
-        className={`${s.menuItem} ${s.danger}`}
+        className={`${s.footerBtn} ${s.danger}`}
         disabled={busy}
         onClick={() => run(["remove", ticket.id], true)}
       >
         Remove
       </button>
-    </div>
+    </>
   );
 }
