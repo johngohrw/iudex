@@ -21,8 +21,8 @@ const GROUPS: {
     head: "GLOBAL",
     scope: "global",
     items: [
+      { id: "cli", label: "CLI" },
       { id: "agents", label: "Agent commands" },
-      { id: "cli", label: "iudex CLI" },
     ],
   },
   {
@@ -229,7 +229,7 @@ export function CliTab({
   return (
     <section className={s.card}>
       <div className={s.head}>
-        <span className={s.title}>iudex CLI</span>
+        <span className={s.title}>CLI</span>
         <code className={s.path}>~/.iudex/config.yml</code>
       </div>
 
@@ -239,7 +239,7 @@ export function CliTab({
           <div className={s.pathRow}>
             <input
               value={path}
-              placeholder="iudex (from PATH)"
+              placeholder="/usr/local/bin/iudex"
               spellCheck={false}
               onChange={(e) => {
                 setPath(e.target.value);

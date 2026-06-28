@@ -54,7 +54,13 @@ export default function ChangedFilesDiff({
       </ul>
       <div className={s.diff}>
         {selected && diff ? (
-          <Suspense fallback={<div className="muted">loading editor…</div>}>
+          <Suspense
+            fallback={
+              <div className="muted" style={{ padding: "10px" }}>
+                loading editor…
+              </div>
+            }
+          >
             <DiffViewer
               original={diff.original}
               modified={diff.modified}
