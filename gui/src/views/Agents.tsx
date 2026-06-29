@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import * as api from "../lib/api";
 import { useSessions } from "../lib/sessions";
 import {
@@ -18,6 +18,7 @@ import type {
 } from "../types";
 import { VIEWS } from "../types";
 import { useTicketDocs } from "../lib/tickets";
+import { useNav, usePendingFocus } from "../lib/nav";
 import ChangedFilesDiff from "../components/ChangedFilesDiff";
 import Badge from "../components/Badge";
 import Button from "../components/Button";
@@ -53,16 +54,11 @@ function RoleChip({ role }: { role: string }) {
 export default function Agents({
   ws,
   root,
-  focusAgent,
-  focusTab,
-  onFocusHandled,
 }: {
   ws: Workspace;
   root: string;
-  focusAgent?: string | null;
-  focusTab?: string | null;
-  onFocusHandled?: () => void;
 }) {
+  const focus = usePendingFocus("agents");
   const { sessions, available } = useSessions();
   const agents = sessions
     .filter((x) => x.kind === "agent")
@@ -97,14 +93,16 @@ export default function Agents({
   );
 
   const [selName, setSelName] = useState<string | null>(null);
-  // Which tab the detail panel opens on for the next selection ("ticket" by
-  // default; a cross-view "watch" can seed "console").
-  const [seedTab, setSeedTab] = useState<Tab>("console");
+  // The active detail tab, held here (not in AgentDetail) so it persists across
+  // agent switches — AgentDetail is keyed by agent and remounts on each switch.
+  const [tab, setTab] = useState<Tab>("console");
   const selected = agents.find((a) => a.name === selName) ?? null;
 
-  const select = (name: string, tab: Tab = "console") => {
+  // Select an agent AND seed its tab — used only by cross-view focus (watch/
+  // spawn). Plain rail clicks select without touching the tab, so it persists.
+  const select = (name: string, tab: Tab) => {
     setSelName(name);
-    setSeedTab(tab);
+    setTab(tab);
   };
 
   // Drop the selection if its agent vanished from the pool.
@@ -115,12 +113,11 @@ export default function Agents({
   // Cross-view focus: select a specific agent when jumping from Tickets/Review,
   // opening the requested tab (e.g. Review "watch" → the resolver's console).
   useEffect(() => {
-    if (focusAgent && agents.some((a) => a.name === focusAgent)) {
-      select(focusAgent, (focusTab as Tab) || "console");
-      onFocusHandled?.();
+    if (focus && agents.some((a) => a.name === focus.id)) {
+      select(focus.id, (focus.tab as Tab) || "console");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusAgent, focusTab, agents, onFocusHandled]);
+  }, [focus, agents]);
 
   const kill = async (name: string) => {
     await api.killSession(name).catch(() => {});
@@ -188,7 +185,7 @@ export default function Agents({
                 <button
                   key={a.name}
                   className={`${s.card} ${a.name === selName ? s.active : ""}`}
-                  onClick={() => select(a.name)}
+                  onClick={() => setSelName(a.name)}
                 >
                   <span className={s.cardTop}>
                     <span className={s.cardId}>{a.ticket ?? "agent"}</span>
@@ -215,7 +212,8 @@ export default function Agents({
               agent={selected}
               ws={ws}
               root={root}
-              initialTab={seedTab}
+              tab={tab}
+              onTab={setTab}
               status={statuses[selected.name] ?? "idle"}
               title={
                 (worktreeOf(selected) && titles[worktreeOf(selected)!]) || ""
@@ -247,7 +245,8 @@ function AgentDetail({
   status,
   title,
   worktree,
-  initialTab,
+  tab,
+  onTab,
   onDismiss,
   onKill,
 }: {
@@ -257,19 +256,18 @@ function AgentDetail({
   status: AgentStatus;
   title: string;
   worktree: string | null;
-  initialTab: Tab;
+  tab: Tab;
+  onTab: (t: Tab) => void;
   onDismiss: () => void;
   onKill: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>(initialTab);
-  // Follow a new seed when the parent re-targets this same agent (e.g. a second
-  // "watch"); a different agent remounts (keyed by name) and picks it up anyway.
-  useEffect(() => setTab(initialTab), [initialTab]);
-  // Mount the console only once it's actually been shown — a hidden mount fits
-  // xterm at zero, attaches tmux at a default 80×24, and the later resize leaves
-  // the screen dump garbled. Once shown it stays mounted (PTY persists across tab
-  // switches); AgentDetail is keyed by agent, so this resets per agent.
-  const [consoleSeen, setConsoleSeen] = useState(initialTab === "console");
+  // The active tab is parent-owned (persists across agent switches); this view
+  // is controlled. Mount the console only once it's actually been shown — a
+  // hidden mount fits xterm at zero, attaches tmux at a default 80×24, and the
+  // later resize leaves the screen dump garbled. Once shown it stays mounted
+  // (PTY persists across tab switches); AgentDetail is keyed by agent, so this
+  // resets per agent.
+  const [consoleSeen, setConsoleSeen] = useState(tab === "console");
   useEffect(() => {
     if (tab === "console") setConsoleSeen(true);
   }, [tab]);
@@ -309,7 +307,7 @@ function AgentDetail({
           <button
             key={t}
             className={`${s.tab} ${tab === t ? s.active : ""}`}
-            onClick={() => setTab(t)}
+            onClick={() => onTab(t)}
           >
             {t.slice(0, 1).toLocaleUpperCase() + t.slice(1)}
           </button>
@@ -355,31 +353,60 @@ function TicketBrief({
   ticket: Ticket;
   role: string;
 }) {
+  const { goTo } = useNav();
   const { docs, loading } = useTicketDocs(root, ticket);
-  const cells: [string, string][] = [
-    ["STATE", ticket.state],
-    ["ROLE", role],
-    ["WORKTREE", ticket.worktree || "—"],
-    ["DEPS", ticket.deps.length ? ticket.deps.join(" ") : "—"],
-    ["QA REJECTS", String(ticket.qaRejects)],
+  const cells: [string, ReactNode][] = [
+    ["state", <Badge kind="state" value={ticket.state} />],
+    ["role", role],
+    ["worktree", ticket.worktree || "—"],
+    ["deps", ticket.deps.length ? ticket.deps.join(" ") : "—"],
+    ["qa rejects", String(ticket.qaRejects)],
   ];
   return (
     <div className={s.pad}>
-      <div className={s.metaGrid}>
-        {cells.map(([label, val]) => (
-          <div key={label} className={s.metaCell}>
-            <div className={s.metaLabel}>{label}</div>
-            <div className={s.metaVal}>{val}</div>
+      <div className={s.section}>
+        <div className={s.sectionHead}>
+          <span className={s.sectionTitle}>
+            ticket · <span className={s.sectionTitleId}>{ticket.id}</span>
+          </span>
+          <div className={s.headBtns}>
+            {ticket.state === "pending-human-qa" && (
+              <Button
+                variant="review"
+                size="sm"
+                onClick={() => goTo("review", { id: ticket.id })}
+              >
+                Go to Review
+              </Button>
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => goTo("tickets", { id: ticket.id })}
+            >
+              Go to Ticket
+            </Button>
           </div>
-        ))}
+        </div>
+        <div className={s.metaMap}>
+          {cells.map(([label, val]) => (
+            <div key={label} className={s.metaRow}>
+              <span className={s.metaKey}>{label}</span>
+              <span className={s.metaVal}>{val}</span>
+            </div>
+          ))}
+        </div>
       </div>
-      {loading && <span className="muted">loading…</span>}
-      {!loading && docs?.brief?.trim() && (
-        <pre className={s.doc}>{docs.brief}</pre>
-      )}
-      {!loading && !docs?.brief?.trim() && (
-        <span className="muted">(no brief)</span>
-      )}
+      <div className={s.section}>
+        <div className={s.sectionLabel}>brief</div>
+        {loading && <span className="muted">loading…</span>}
+        {!loading && docs?.brief?.trim() && (
+          <pre className={s.doc}>{docs.brief}</pre>
+        )}
+        {!loading && !docs?.brief?.trim() && (
+          <span className="muted">(no brief)</span>
+        )}
+      </div>
     </div>
   );
 }
