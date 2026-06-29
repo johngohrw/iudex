@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import * as api from "../lib/api";
 import { useSessions } from "../lib/sessions";
 import {
+  agentBucket,
   isFinished,
   STATUS_LABEL,
   useAgentStatuses,
@@ -72,6 +73,16 @@ export default function Agents({
     );
 
   const statuses = useAgentStatuses(agents, ws);
+  // Rail-header breakdown: tally every agent into working / needs-you / finished
+  // (exhaustive over AgentStatus); zero-count buckets are dropped so empty lines
+  // never render.
+  const tally = { working: 0, "needs-you": 0, finished: 0 };
+  for (const a of agents) tally[agentBucket(statuses[a.name] ?? "idle")]++;
+  const buckets = [
+    { label: "working", n: tally.working },
+    { label: "needs you", n: tally["needs-you"] },
+    { label: "finished", n: tally.finished },
+  ].filter((b) => b.n > 0);
 
   const worktreeOf = (a: Session) =>
     a.ticket
@@ -136,13 +147,34 @@ export default function Agents({
 
   return (
     <div className={s.view}>
-      <ViewHeader dot={VIEWS.agents.dot} title="Agents">
-        <span className={s.headerCount}>
-          {agents.length} agent{agents.length === 1 ? "" : "s"}
-        </span>
-      </ViewHeader>
+      <ViewHeader dot={VIEWS.agents.dot} title="Agents" />
       <div className={s.root}>
         <aside className={s.rail}>
+          <div className={s.railHead}>
+            <div>
+              {agents.length} agent{agents.length === 1 ? "" : "s"}
+            </div>
+            {buckets.map((b, i) => (
+              <div key={b.label} className={s.railHeadChild}>
+                <span className={s.treeMark}>
+                  {i === buckets.length - 1 ? "└─ " : "├─ "}
+                </span>
+                <span>
+                  {b.n} {b.label}
+                </span>
+                {b.label === "finished" && (
+                  <Button
+                    variant="quiet"
+                    size="sm"
+                    onClick={clearFinished}
+                    style={{ marginLeft: "auto" }}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
           <div className={s.list}>
             {agents.length === 0 && (
               <div className={`${s.empty} muted`}>
@@ -173,14 +205,6 @@ export default function Agents({
                 </button>
               );
             })}
-          </div>
-          <div className={s.foot}>
-            <span className="muted">
-              {agents.length} agent{agents.length === 1 ? "" : "s"}
-            </span>
-            <Button variant="quiet" size="sm" onClick={clearFinished}>
-              Clear All Finished
-            </Button>
           </div>
         </aside>
 

@@ -33,6 +33,31 @@ export function isFinished(s: AgentStatus): boolean {
   return s === "done" || s === "resolved" || s === "crashed";
 }
 
+export type AgentBucket = "working" | "needs-you" | "finished";
+
+// Coarse grouping for the Agents rail-header summary — an exhaustive partition
+// of every AgentStatus into three buckets:
+//   working   — actively running or alive-but-quiet (working, idle)
+//   needs-you — parked at a human gate (awaiting-finish, review-ready, flagged)
+//   finished  — terminal: completed, merged, or dead (done, resolved, crashed, gone)
+// Exhaustive (no `default`) so a new AgentStatus forces a decision here.
+export function agentBucket(s: AgentStatus): AgentBucket {
+  switch (s) {
+    case "working":
+    case "idle":
+      return "working";
+    case "awaiting-finish":
+    case "review-ready":
+    case "flagged":
+      return "needs-you";
+    case "resolved":
+    case "done":
+    case "crashed":
+    case "gone":
+      return "finished";
+  }
+}
+
 // A resolver agent's status derived from the authoritative git merge state +
 // the resolution.json it writes (read via read_resolution), rather than from
 // process liveness alone. Live-derived, so it self-heals: once you commit (or
