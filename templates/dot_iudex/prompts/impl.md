@@ -16,10 +16,12 @@ You are implementing a single iudex ticket inside its dedicated git worktree.
 
 ## When done
 
-Commit everything, then execute the following command:
+Commit everything, then hand the ticket to QA by running (pass your ticket id
+explicitly — it is the name of this worktree's directory, e.g. `t5`):
 
 ```
-iudex finish
+iudex finish t<N>
 ```
 
-This hands the ticket to QA and ends your session.
+Replace `t<N>` with your ticket id. This hands the ticket to QA and ends your
+session.

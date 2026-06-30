@@ -14,14 +14,18 @@ Write a structured review to `.task/review.md` covering correctness, completenes
 
 ## When done
 
-If the work meets the brief, execute the following command:
+Pass your ticket id explicitly to these commands — it is the name of this
+worktree's directory (e.g. `t5`). Replace `t<N>` below with that id.
+
+If the work meets the brief:
 
 ```
-iudex qa approve
+iudex qa approve t<N>
 ```
 
-If it needs revision, execute the following command (your review.md is the feedback the next implementation session reads):
+If it needs revision (your review.md is the feedback the next implementation
+session reads):
 
 ```
-iudex qa reject
+iudex qa reject t<N>
 ```
