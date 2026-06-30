@@ -226,7 +226,7 @@ export const VIEWS: Record<View, ViewConfig> = {
 // Side-channel views, pinned to the bottom of the rail (above the pipeline) —
 // useful but not part of the core queue→implement→QA→review→merge workflow.
 // Settings sits last in this group.
-const SECONDARY_IDS: View[] = ["worktrees", "archive", "settings"];
+const SECONDARY_IDS: View[] = ["specifications", "worktrees", "archive", "settings"];
 
 // The left-nav rail, split into a top (core workflow) and bottom (secondary)
 // group.
