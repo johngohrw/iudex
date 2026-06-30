@@ -199,6 +199,15 @@ func WorktreesDir(root string) string { return filepath.Join(root, Dir, "worktre
 // PromptsDir returns <root>/.iudex/prompts.
 func PromptsDir(root string) string { return filepath.Join(root, Dir, "prompts") }
 
+// ContextDir returns <root>/.context, the tracked project-docs directory
+// (unlike the gitignored .iudex/). Committing it is what makes the glossary,
+// ADRs, and PRDs visible inside ticket worktrees.
+func ContextDir(root string) string { return filepath.Join(root, ".context") }
+
+// PRDDir returns <root>/.context/prd, where PRDs live (a subfolder so they are
+// not read as glossary). It is the input to the spec parser.
+func PRDDir(root string) string { return filepath.Join(root, ".context", "prd") }
+
 // QueueFile returns the authored markdown path for a ticket in the queue.
 func QueueFile(root, ticket string) string {
 	return filepath.Join(QueueDir(root), ticket+".md")
