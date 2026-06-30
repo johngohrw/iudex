@@ -66,8 +66,14 @@ export default function App() {
   const mounted = useViewKeepAlive(view);
   const { sessions } = useSessions(root);
   // Opt-in auto-activate / auto-QA drains + the steady-cadence poll.
-  const { autoActivate, autoQA, toggleAutoActivate, toggleAutoQA } =
-    useAutomation(root, ws, sessions, load, setError);
+  const {
+    autoActivate,
+    autoQA,
+    autoRetire,
+    toggleAutoActivate,
+    toggleAutoQA,
+    toggleAutoRetire,
+  } = useAutomation(root, ws, sessions, load, setError);
 
   // First-run agent setup, gated on the CLI being reachable (the read shells
   // `iudex config --json`).
@@ -181,8 +187,10 @@ export default function App() {
               automation={{
                 autoActivate,
                 autoQA,
+                autoRetire,
                 toggleAutoActivate,
                 toggleAutoQA,
+                toggleAutoRetire,
               }}
             />
 

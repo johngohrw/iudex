@@ -26,16 +26,20 @@ export function useAutomation(
   const autoQARef = useRef(false);
   const qaDrainingRef = useRef(false);
   const qaHandledRef = useRef<Set<string>>(new Set()); // pending-qa ids already spawned this episode
+  const [autoRetire, setAutoRetire] = useState(false);
+  const retiredRef = useRef<Set<string>>(new Set()); // agent names already kill-requested
 
-  // Reset both toggles to off when the workspace changes; reset the guards.
+  // Reset all toggles to off when the workspace changes; reset the guards.
   useEffect(() => {
     if (!root) return;
     skipRef.current.clear();
     qaHandledRef.current.clear();
+    retiredRef.current.clear();
     autoActivateRef.current = false;
     autoQARef.current = false;
     setAutoActivate(false);
     setAutoQA(false);
+    setAutoRetire(false);
   }, [root]);
 
   const toggleAutoActivate = useCallback((v: boolean) => {
@@ -48,6 +52,11 @@ export function useAutomation(
     autoQARef.current = v;
     qaHandledRef.current.clear();
     setAutoQA(v);
+  }, []);
+
+  const toggleAutoRetire = useCallback((v: boolean) => {
+    retiredRef.current.clear();
+    setAutoRetire(v);
   }, []);
 
   // Auto-activate: while on, activate the first ready ticket + spawn its impl
@@ -131,14 +140,56 @@ export function useAutomation(
     })();
   }, [autoQA, root, ws, sessions, onError]);
 
-  // While either automation is on, poll the workspace every 5s so the drains
+  // Auto-retire: kill agents whose ticket has moved past their role's phase — a
+  // clean transition supersedes them (the work is committed, the phase advanced).
+  // Derived from ws+sessions alone (no tmux liveness poll), so it fires on the
+  // doorbell and, by construction, leaves crashed agents (ticket never moved) and
+  // flagged/working resolvers (ticket still pending-human-qa) untouched. The
+  // sessions poll lags the kill by up to its interval, so a name-keyed guard
+  // avoids re-issuing kills while the dead session lingers in the list.
+  useEffect(() => {
+    if (!autoRetire || !root || !ws) return;
+    const live = new Set(sessions.map((s) => s.name));
+    for (const name of retiredRef.current) {
+      if (!live.has(name)) retiredRef.current.delete(name); // reaped — forget it
+    }
+    const superseded = sessions.filter((sx) => {
+      if (sx.kind !== "agent" || !sx.ticket || !sx.role) return false;
+      const phase = AGENT_PHASE[sx.role];
+      if (!phase) return false; // unknown role → leave it alone
+      const t = ws.tickets.find((t) => t.id === sx.ticket);
+      return !!t && t.state !== phase && !retiredRef.current.has(sx.name);
+    });
+    for (const sx of superseded) {
+      retiredRef.current.add(sx.name);
+      api.killSession(sx.name).catch(() => {});
+    }
+  }, [autoRetire, root, ws, sessions]);
+
+  // While any automation is on, poll the workspace every 5s so the drains
   // re-evaluate on a steady cadence (not only on the events doorbell) — freeing
   // slots / newly-queued / newly-pending-qa tickets get picked up.
   useEffect(() => {
-    if (!root || (!autoActivate && !autoQA)) return;
+    if (!root || (!autoActivate && !autoQA && !autoRetire)) return;
     const h = setInterval(() => load(root), 5000);
     return () => clearInterval(h);
-  }, [autoActivate, autoQA, root, load]);
+  }, [autoActivate, autoQA, autoRetire, root, load]);
 
-  return { autoActivate, autoQA, toggleAutoActivate, toggleAutoQA };
+  return {
+    autoActivate,
+    autoQA,
+    autoRetire,
+    toggleAutoActivate,
+    toggleAutoQA,
+    toggleAutoRetire,
+  };
 }
+
+// The ticket state in which each agent role is the one doing the work; once the
+// ticket leaves it, that role's agent is superseded. idea agents have no phase
+// (not ticket-scoped) and are never auto-retired.
+const AGENT_PHASE: Record<string, string> = {
+  impl: "active",
+  qa: "pending-qa",
+  resolve: "pending-human-qa",
+};

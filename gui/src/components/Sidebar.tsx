@@ -11,8 +11,10 @@ import s from "./Sidebar.module.scss";
 type Automation = {
   autoActivate: boolean;
   autoQA: boolean;
+  autoRetire: boolean;
   toggleAutoActivate: (v: boolean) => void;
   toggleAutoQA: (v: boolean) => void;
+  toggleAutoRetire: (v: boolean) => void;
 };
 
 // The left navigation rail: the view buttons (BUILD / OTHERS) over a bottom panel
@@ -134,26 +136,37 @@ function PipelineSummary({
 }
 
 function TransportControls({ automation }: { automation: Automation }) {
-  const { autoActivate, autoQA, toggleAutoActivate, toggleAutoQA } = automation;
+  const {
+    autoActivate,
+    autoQA,
+    autoRetire,
+    toggleAutoActivate,
+    toggleAutoQA,
+    toggleAutoRetire,
+  } = automation;
+  const allOn = autoActivate && autoQA && autoRetire;
+  const allOff = !autoActivate && !autoQA && !autoRetire;
   return (
     <div className={s.transport}>
       <div className={s.transportBtns}>
         <span
-          className={`${s.tBtn} ${autoActivate && autoQA ? s.tActive : ""}`}
-          title="Start automation (Auto-Activate + Auto-QA on)"
+          className={`${s.tBtn} ${allOn ? s.tActive : ""}`}
+          title="Start automation (Auto-Activate + Auto-QA + Auto-Retire on)"
           onClick={() => {
             toggleAutoActivate(true);
             toggleAutoQA(true);
+            toggleAutoRetire(true);
           }}
         >
           <span className={s.playTri} />
         </span>
         <span
-          className={`${s.tBtn} ${!autoActivate && !autoQA ? s.tActive : ""}`}
-          title="Stop automation (both off)"
+          className={`${s.tBtn} ${allOff ? s.tActive : ""}`}
+          title="Stop automation (all off)"
           onClick={() => {
             toggleAutoActivate(false);
             toggleAutoQA(false);
+            toggleAutoRetire(false);
           }}
         >
           <span className={s.stopSq} />
@@ -174,6 +187,15 @@ function TransportControls({ automation }: { automation: Automation }) {
           <span
             className={`${s.toggle} ${autoQA ? s.toggleOn : s.toggleOff}`}
             onClick={() => toggleAutoQA(!autoQA)}
+          >
+            <span className={s.knob} />
+          </span>
+        </div>
+        <div className={s.toggleRow}>
+          <span className={s.toggleLabel}>Auto-Retire</span>
+          <span
+            className={`${s.toggle} ${autoRetire ? s.toggleOn : s.toggleOff}`}
+            onClick={() => toggleAutoRetire(!autoRetire)}
           >
             <span className={s.knob} />
           </span>
