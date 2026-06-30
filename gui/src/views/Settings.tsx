@@ -4,10 +4,11 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { VIEWS, type AgentCmd, type Config } from "../types";
 import ViewHeader from "../components/ViewHeader";
 import Button from "../components/Button";
+import Toggle from "../components/Toggle";
 import s from "./Settings.module.scss";
 
 type Saved = { ok: boolean; msg: string } | null;
-type SubTab = "cli" | "general" | "agents" | "prompts";
+type SubTab = "cli" | "behavior" | "general" | "agents" | "prompts";
 
 // Sidebar grouped by scope: GLOBAL settings live in ~/.iudex/ and apply to the
 // app/machine itself (no workspace needed); WORKSPACE settings are the
@@ -24,6 +25,7 @@ const GROUPS: {
     items: [
       { id: "cli", label: "CLI" },
       { id: "agents", label: "Agent commands" },
+      { id: "behavior", label: "Behavior" },
     ],
   },
   {
@@ -38,6 +40,7 @@ const GROUPS: {
 
 const SUBTITLES: Record<SubTab, string> = {
   cli: "~/.iudex/config.yml",
+  behavior: "~/.iudex/config.yml",
   general: "~/.iudex/config.yml",
   agents: "~/.iudex/config.yml",
   prompts: ".iudex/prompts/",
@@ -133,6 +136,8 @@ export default function Settings({
             <CliTab />
           ) : tab === "agents" ? (
             <AgentsTab />
+          ) : tab === "behavior" ? (
+            <BehaviorTab />
           ) : !root ? (
             <div className={s.loading}>
               open a workspace to edit its settings
@@ -290,6 +295,79 @@ function SavedNote({ saved }: { saved: Saved }) {
       {saved.ok ? "✓ " : "✗ "}
       {saved.msg}
     </span>
+  );
+}
+
+// GLOBAL tab: machine-level GUI behavior prefs (~/.iudex/config.yml). Currently
+// one toggle — whether a full quit tears down the tmux pool. Edits are local
+// until Save (mirrors the other settings tabs).
+function BehaviorTab() {
+  const [killOnExit, setKillOnExit] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState<Saved>(null);
+
+  useEffect(() => {
+    api
+      .getKillPoolOnExit()
+      .then(setKillOnExit)
+      .catch((e) => setSaved({ ok: false, msg: String(e) }));
+  }, []);
+
+  const save = async () => {
+    if (killOnExit === null) return;
+    setBusy(true);
+    setSaved(null);
+    try {
+      await api.setKillPoolOnExit(killOnExit);
+      setSaved({ ok: true, msg: "saved" });
+    } catch (e) {
+      setSaved({ ok: false, msg: String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className={s.card}>
+      <div className={s.head}>
+        <span className={s.title}>Behavior</span>
+        <code className={s.path}>~/.iudex/config.yml</code>
+      </div>
+
+      <div className={s.fields}>
+        <div className="field">
+          <span>On fully quitting the app</span>
+          <div className={s.checkRow}>
+            <Toggle
+              checked={killOnExit ?? true}
+              disabled={killOnExit === null}
+              onChange={(v) => {
+                setKillOnExit(v);
+                setSaved(null);
+              }}
+            />
+            <span>Kill all running agents and shells</span>
+          </div>
+          <small className={s.note}>
+            On (default): quitting tears down the tmux pool — nothing keeps
+            running in the background. Off: agents and shells stay detached and
+            are rediscovered next launch. Switching workspaces never kills them
+            either way.
+          </small>
+        </div>
+        <div className={s.actions}>
+          <SavedNote saved={saved} />
+          <Button
+            variant="primary"
+            size="md"
+            disabled={busy || killOnExit === null}
+            onClick={save}
+          >
+            {busy ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      </div>
+    </section>
   );
 }
 

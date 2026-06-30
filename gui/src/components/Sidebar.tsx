@@ -6,6 +6,7 @@ import {
   type Session,
 } from "../types";
 import SectionHeader from "./SectionHeader";
+import Toggle from "./Toggle";
 import s from "./Sidebar.module.scss";
 
 type Automation = {
@@ -176,30 +177,15 @@ function TransportControls({ automation }: { automation: Automation }) {
       <div className={s.toggles}>
         <div className={s.toggleRow}>
           <span className={s.toggleLabel}>Auto-Activate</span>
-          <span
-            className={`${s.toggle} ${autoActivate ? s.toggleOn : s.toggleOff}`}
-            onClick={() => toggleAutoActivate(!autoActivate)}
-          >
-            <span className={s.knob} />
-          </span>
+          <Toggle checked={autoActivate} onChange={toggleAutoActivate} />
         </div>
         <div className={s.toggleRow}>
           <span className={s.toggleLabel}>Auto-QA</span>
-          <span
-            className={`${s.toggle} ${autoQA ? s.toggleOn : s.toggleOff}`}
-            onClick={() => toggleAutoQA(!autoQA)}
-          >
-            <span className={s.knob} />
-          </span>
+          <Toggle checked={autoQA} onChange={toggleAutoQA} />
         </div>
         <div className={s.toggleRow}>
           <span className={s.toggleLabel}>Auto-Retire</span>
-          <span
-            className={`${s.toggle} ${autoRetire ? s.toggleOn : s.toggleOff}`}
-            onClick={() => toggleAutoRetire(!autoRetire)}
-          >
-            <span className={s.knob} />
-          </span>
+          <Toggle checked={autoRetire} onChange={toggleAutoRetire} />
         </div>
       </div>
     </div>

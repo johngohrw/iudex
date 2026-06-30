@@ -69,6 +69,11 @@ export const readPrd = (root: string, file: string) =>
   invoke<string>("read_prd", { root, file });
 export const getIudexSettings = () => invoke<IudexSettings>("get_iudex_settings");
 export const setIudexBin = (path: string) => invoke<string>("set_iudex_bin", { path });
+// GUI behavior pref (machine-level, ~/.iudex/config.yml): kill the tmux pool on
+// full app exit. Default true; off keeps agents/shells detached across a quit.
+export const getKillPoolOnExit = () => invoke<boolean>("get_kill_pool_on_exit");
+export const setKillPoolOnExit = (value: boolean) =>
+  invoke<void>("set_kill_pool_on_exit", { value });
 
 // ── Tickets ─────────────────────────────────────────────────────────────────
 export const readQueueBrief = (root: string, id: string) =>

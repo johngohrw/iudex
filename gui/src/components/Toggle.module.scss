@@ -1,0 +1,39 @@
+@use "../styles/tokens" as t;
+
+// Flat on/off switch — amber when on (design-system §4, color = state). Shared by
+// the Sidebar automation rail and the Settings Behavior tab.
+.toggle {
+  width: 28px;
+  height: 14px;
+  border: 1px solid t.$divider-chrome;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+  flex: none;
+
+  .knob {
+    width: 10px;
+    height: 10px;
+  }
+}
+.on {
+  background: t.$amber;
+  justify-content: flex-end;
+  .knob {
+    background: t.$divider-chrome;
+  }
+}
+.off {
+  background: t.$sidebar;
+  justify-content: flex-start;
+  .knob {
+    background: #6a6a6a;
+  }
+}
+.disabled {
+  cursor: default;
+  opacity: 0.5;
+}

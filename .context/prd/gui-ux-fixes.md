@@ -34,8 +34,7 @@ hangs off of.
 | #13 | post-action nav rule codified in `lib/nav.ts` (already uniform) | P3 pass |
 | Decision #2 | resolved by #8 — Terminal only ever holds shells now | `d36b35c` |
 
-**Remaining:** nothing in the original backlog. One sub-thread of Decision #2
-is still open (should plain shells survive a GUI restart?).
+**Remaining:** nothing — every item and decision is resolved.
 
 ---
 
@@ -159,9 +158,14 @@ terminals** — close means kill, full stop.
 **Resolved:** the real fix shipped in #8 — agents no longer live in Terminal
 (idea routed to Agents; Terminal restores only `kind === "shell"`). Terminal now
 only ever holds plain shells, where kill-on-close is the desired behavior.
-**Open question (still open):** Should shells still survive a GUI restart (the
-tmux pool's detach-on-app-close), or is even that "magic" we want gone for
-terminals?
+**Sub-thread (should sessions survive the app?) — resolved as a setting:** a full
+GUI quit tears down the *entire* iudex tmux pool (agents + shells), so nothing
+survives the app — but this is made configurable. A new GLOBAL Settings →
+**Behavior** toggle (`gui_kill_pool_on_exit` in `~/.iudex/config.yml`, **default
+on**) lets users keep agents/shells running detached across a quit. Implemented
+via a `kill_pool()` backend torn down in the Tauri `RunEvent::Exit` hook, gated
+on the flag. **Workspace switches never kill sessions** either way — they keep
+running, scoped by `@iudex_root`, and reappear when you return.
 
 ### #3 — Reconsider exposing `finish` in the GUI at all — ✅ RESOLVED (option B)
 **Original finding:** `finish` auto-commits WIP, so firing it mid-edit corrupts

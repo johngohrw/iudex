@@ -115,6 +115,39 @@ fn write_iudex_bin(app: &AppHandle, path: &str) -> Result<(), String> {
     std::fs::write(&cfg, out).map_err(|e| format!("write {}: {e}", cfg.display()))
 }
 
+/// GUI behavior pref: tear down the whole tmux pool on full app exit. Stored in
+/// ~/.iudex/config.yml as a GUI-owned key the CLI ignores. Absent or unparseable
+/// → true (the Decision #2 "no detached survival" default); set "false" to keep
+/// agents/shells running detached across a quit.
+fn read_kill_pool_on_exit(app: &AppHandle) -> bool {
+    global_config_path(app)
+        .ok()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| yaml_scalar(&t, "gui_kill_pool_on_exit"))
+        .map(|v| v != "false")
+        .unwrap_or(true)
+}
+
+#[tauri::command]
+fn get_kill_pool_on_exit(app: AppHandle) -> bool {
+    read_kill_pool_on_exit(&app)
+}
+
+#[tauri::command]
+fn set_kill_pool_on_exit(app: AppHandle, value: bool) -> Result<(), String> {
+    let cfg = global_config_path(&app)?;
+    let text = std::fs::read_to_string(&cfg).unwrap_or_default();
+    let out = yaml_upsert_scalar(
+        &text,
+        "gui_kill_pool_on_exit",
+        Some(if value { "true" } else { "false" }),
+    );
+    if let Some(dir) = cfg.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
+    }
+    std::fs::write(&cfg, out).map_err(|e| format!("write {}: {e}", cfg.display()))
+}
+
 /// Load the persisted iudex binary path into the global override. Called once at
 /// startup, before any command runs.
 fn load_iudex_override(app: &AppHandle) {
@@ -1819,6 +1852,8 @@ pub fn run() {
             check_iudex,
             get_iudex_settings,
             set_iudex_bin,
+            get_kill_pool_on_exit,
+            set_kill_pool_on_exit,
             discover_workspace,
             init_workspace,
             read_config,
@@ -1871,8 +1906,20 @@ pub fn run() {
             tmux::close_terminal,
             tmux::next_terminal_id
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // On full quit, tear down the whole iudex tmux pool unless the user
+            // opted to keep agents/shells running detached (gui_kill_pool_on_exit,
+            // default on). Workspace switches never reach here, so those sessions
+            // keep running and reappear on return regardless. See Decision #2 in
+            // .context/prd/gui-ux-fixes.md.
+            if let tauri::RunEvent::Exit = event {
+                if read_kill_pool_on_exit(app) {
+                    tmux::kill_pool();
+                }
+            }
+        });
 }
 
 #[cfg(test)]

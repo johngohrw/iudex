@@ -139,36 +139,8 @@
   font-size: 10px;
   color: t.$text-meta;
 }
-.toggle {
-  width: 28px;
-  height: 14px;
-  border: 1px solid t.$divider-chrome;
-  cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
-  display: flex;
-  align-items: center;
-  padding: 0 2px;
-
-  .knob {
-    width: 10px;
-    height: 10px;
-  }
-}
-.toggleOn {
-  background: t.$amber;
-  justify-content: flex-end;
-  .knob {
-    background: t.$divider-chrome;
-  }
-}
-.toggleOff {
-  background: t.$sidebar;
-  justify-content: flex-start;
-  .knob {
-    background: #6a6a6a;
-  }
-}
+// The toggle switch itself now lives in the shared <Toggle> component
+// (components/Toggle.module.scss); the rows above only do layout.
 
 .sysinfo {
   padding: 9px 11px;

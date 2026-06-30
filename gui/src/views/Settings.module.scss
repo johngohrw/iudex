@@ -148,6 +148,17 @@
   }
 }
 
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  input {
+    flex: none;
+    margin: 0;
+  }
+}
+
 .browse {
   flex: none;
   height: 24px;

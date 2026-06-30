@@ -524,6 +524,30 @@ pub fn kill_session(name: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Tear down the entire pool — every `iudex-*` session (agents, idea, shells).
+/// Called once on full app exit so nothing survives the GUI: per Decision #2, a
+/// terminal is a dumb terminal (no detached background survival), and agents are
+/// GUI-lifecycle-bound. A workspace switch never calls this — those sessions keep
+/// running and reappear when you return. Best-effort: a missing tmux server just
+/// means an empty pool, so failures are ignored. (Pool is machine-level, so this
+/// also stops any other GUI instance's sessions — fine under a single instance.)
+pub fn kill_pool() {
+    let out = match Command::new("tmux")
+        .args(["list-sessions", "-F", "#{session_name}"])
+        .output()
+    {
+        Ok(o) if o.status.success() => o,
+        _ => return, // no server / no sessions
+    };
+    for name in String::from_utf8_lossy(&out.stdout).lines() {
+        if name.starts_with(PREFIX) {
+            let _ = Command::new("tmux")
+                .args(["kill-session", "-t", name])
+                .status();
+        }
+    }
+}
+
 /// Capture the last `lines` rows of a session's visible pane as plain text — the
 /// data source for a read-only peek. Cheap enough to poll for a grid.
 #[tauri::command]
