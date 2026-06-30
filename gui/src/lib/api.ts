@@ -123,12 +123,13 @@ export const openFolderWith = (path: string) => invoke<void>("open_folder_with",
 
 // ── tmux pool / sessions / agents ───────────────────────────────────────────
 export const tmuxAvailable = () => invoke<boolean>("tmux_available");
-export const listSessions = () => invoke<Session[]>("list_sessions");
+export const listSessions = (root: string) => invoke<Session[]>("list_sessions", { root });
 export const sessionStatus = (name: string) => invoke<SessionStatus>("session_status", { name });
 export const capturePane = (name: string, lines: number) =>
   invoke<string>("capture_pane", { name, lines });
 export const killSession = (name: string) => invoke<void>("kill_session", { name });
-export const createShell = (cwd?: string) => invoke<Session>("create_shell", { cwd });
+export const createShell = (root: string, cwd?: string) =>
+  invoke<Session>("create_shell", { root, cwd });
 export const spawnAgent = (root: string, ticket: string, role: string) =>
   invoke<Session>("spawn_agent", { root, ticket, role });
 export const spawnIdea = (root: string, skill: string, seed: string) =>

@@ -59,7 +59,7 @@ export default function Agents({
   root: string;
 }) {
   const focus = usePendingFocus("agents");
-  const { sessions, available } = useSessions();
+  const { sessions, available } = useSessions(root);
   const agents = sessions
     .filter((x) => x.kind === "agent")
     .sort(

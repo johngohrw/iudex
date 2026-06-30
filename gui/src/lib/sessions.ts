@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import * as api from "./api";
 import type { Session } from "../types";
 
@@ -60,6 +60,11 @@ let snapshot: SessionsSnapshot = {
 const listeners = new Set<() => void>();
 let timer: ReturnType<typeof setInterval> | null = null;
 
+// The workspace the shared poll is scoped to. `list_sessions` filters to this
+// root in the backend, so switching workspaces shows only that project's
+// sessions (set via useSessions). Null when no workspace is open → no poll.
+let currentRoot: string | null = null;
+
 function sessionsEqual(a: Session[], b: Session[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
@@ -105,12 +110,26 @@ export function addSession(sx: Session) {
 }
 
 async function tick() {
+  const root = currentRoot;
+  if (!root) return; // no workspace open → nothing to poll
   try {
-    const s = await api.listSessions();
+    const s = await api.listSessions(root);
+    // Drop a late response from a previous workspace if root changed mid-flight.
+    if (currentRoot !== root) return;
     setSnapshot({ sessions: s, loaded: true, error: null });
   } catch (e) {
     setSnapshot({ error: String(e) });
   }
+}
+
+// Point the shared poll at a workspace. On change, clear the previous
+// workspace's sessions immediately (so they don't linger across a switch), then
+// refetch for the new root.
+function setCurrentRoot(root: string | null) {
+  if (root === currentRoot) return;
+  currentRoot = root;
+  setSnapshot({ sessions: [], loaded: false });
+  if (root && timer !== null) tick();
 }
 
 function startPolling() {
@@ -159,9 +178,13 @@ function getSnapshot(): SessionsSnapshot {
   return snapshot;
 }
 
-// Subscribe to the shared tmux session pool. Every caller gets the same live
-// snapshot from a single poll. Drop-in replacement for the old per-instance hook
-// (same return shape) — the five call sites are unchanged.
-export function useSessions(): SessionsSnapshot {
+// Subscribe to the shared tmux session pool, scoped to the open workspace.
+// Every caller gets the same live snapshot from a single poll; passing `root`
+// keeps that poll filtered to the current workspace (callers all pass the same
+// open root, so it's idempotent). Null root (no workspace) yields an empty list.
+export function useSessions(root: string | null): SessionsSnapshot {
+  useEffect(() => {
+    setCurrentRoot(root);
+  }, [root]);
   return useSyncExternalStore(subscribe, getSnapshot);
 }

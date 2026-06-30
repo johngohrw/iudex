@@ -29,7 +29,7 @@ export default function Terminal({
   visible: boolean;
 }) {
   const focus = usePendingFocus("terminal");
-  const { sessions, available, loaded } = useSessions();
+  const { sessions, available, loaded } = useSessions(root);
   const [open, setOpen] = useState<string[]>([]); // sessions with a mounted pane
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [restored, setRestored] = useState(false);
@@ -81,7 +81,7 @@ export default function Terminal({
 
   const newShell = async () => {
     try {
-      const s = await api.createShell(root);
+      const s = await api.createShell(root, root);
       addSession(s); // so liveNames includes it before the next poll — keeps focus
       openSession(s.name);
     } catch (e) {

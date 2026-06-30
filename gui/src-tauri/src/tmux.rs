@@ -32,6 +32,7 @@ pub struct Session {
     pub ticket: Option<String>,  // agent's ticket id (e.g. "t3")
     pub role: Option<String>,    // agent's role at spawn ("impl" | "qa")
     pub started: Option<String>, // agent spawn time (unix millis, sortable)
+    pub root: Option<String>,    // workspace this session belongs to (@iudex_root)
     pub title: String,           // display label (frontend may override)
 }
 
@@ -80,17 +81,19 @@ pub fn tmux_available() -> bool {
         .unwrap_or(false)
 }
 
-/// List the pool: every `iudex-…` tmux session. A missing tmux server just means
-/// an empty pool, not an error.
-#[tauri::command]
-pub fn list_sessions() -> Result<Vec<Session>, String> {
-    // One call returns every session's name plus its agent metadata (empty for
-    // shells / non-pool sessions). Tab-delimited; tmux names never contain tabs.
+/// List the *entire* pool — every `iudex-…` tmux session on the machine,
+/// unfiltered. A missing tmux server just means an empty pool, not an error.
+/// The public `list_sessions` command scopes this to one workspace; internal
+/// callers (shell-index allocation) need the full global view, since session
+/// names are machine-global.
+fn list_all() -> Result<Vec<Session>, String> {
+    // One call returns every session's name plus its metadata (empty for shells /
+    // non-pool sessions). Tab-delimited; tmux names/option values never hold tabs.
     let out = Command::new("tmux")
         .args([
             "list-sessions",
             "-F",
-            "#{session_name}\t#{@iudex_ticket}\t#{@iudex_role}\t#{@iudex_started}",
+            "#{session_name}\t#{@iudex_ticket}\t#{@iudex_role}\t#{@iudex_started}\t#{@iudex_root}",
         ])
         .output()
         .map_err(|e| format!("tmux: {e}"))?;
@@ -107,6 +110,19 @@ pub fn list_sessions() -> Result<Vec<Session>, String> {
         .collect())
 }
 
+/// List the pool for one workspace: sessions tagged with this `root`, plus any
+/// untagged session (legacy ones from before scoping, or one whose tag failed to
+/// stamp) so a live agent is never hidden. This is what stops one project's
+/// sessions from showing up in another — the GUI polls it with the open
+/// workspace's root.
+#[tauri::command]
+pub fn list_sessions(root: String) -> Result<Vec<Session>, String> {
+    Ok(list_all()?
+        .into_iter()
+        .filter(|s| s.root.as_deref() == Some(root.as_str()) || s.root.is_none())
+        .collect())
+}
+
 /// Build a Session from a `list_sessions` line. Agents (opaque `iudex-agent-…`
 /// names) take their ticket/role/started from the user-option columns; shells
 /// (`iudex-shell-N`) are name-derived. Anything else is skipped.
@@ -116,6 +132,7 @@ fn parse_line(line: &str) -> Option<Session> {
     let ticket = nonempty(cols.next().unwrap_or(""));
     let role = nonempty(cols.next().unwrap_or(""));
     let started = nonempty(cols.next().unwrap_or(""));
+    let root = nonempty(cols.next().unwrap_or(""));
 
     if name.starts_with(&format!("{PREFIX}agent-")) {
         let title = match (&ticket, &role) {
@@ -129,6 +146,7 @@ fn parse_line(line: &str) -> Option<Session> {
             ticket,
             role,
             started,
+            root,
             title,
         })
     } else if name.starts_with(&format!("{PREFIX}idea-")) {
@@ -143,6 +161,7 @@ fn parse_line(line: &str) -> Option<Session> {
             ticket: None,
             role,
             started,
+            root,
             title,
         })
     } else if let Some(tail) = name.strip_prefix(&format!("{PREFIX}shell-")) {
@@ -152,6 +171,7 @@ fn parse_line(line: &str) -> Option<Session> {
             ticket: None,
             role: None,
             started: None,
+            root,
             title: format!("shell {tail}"),
         })
     } else {
@@ -173,8 +193,9 @@ fn enable_mouse(name: &str) {
 /// `cwd` starts the shell in that directory (used by Worktrees' "Open shell" to
 /// drop into a worktree); omitted, it starts wherever tmux defaults.
 #[tauri::command]
-pub fn create_shell(cwd: Option<String>) -> Result<Session, String> {
-    let existing = list_sessions()?;
+pub fn create_shell(root: String, cwd: Option<String>) -> Result<Session, String> {
+    // Shell names are machine-global, so allocate the index against the full pool.
+    let existing = list_all()?;
     let mut n = 1;
     while existing.iter().any(|s| s.name == format!("{PREFIX}shell-{n}")) {
         n += 1;
@@ -193,12 +214,17 @@ pub fn create_shell(cwd: Option<String>) -> Result<Session, String> {
         return Err("tmux new-session failed".to_string());
     }
     enable_mouse(&name);
+    // Scope the shell to the workspace it was opened from (read back by list_sessions).
+    let _ = Command::new("tmux")
+        .args(["set-option", "-t", &name, "@iudex_root", &root])
+        .status();
     Ok(Session {
         name,
         kind: "shell".to_string(),
         ticket: None,
         role: None,
         started: None,
+        root: Some(root),
         title: format!("shell {n}"),
     })
 }
@@ -255,6 +281,7 @@ pub fn spawn_agent(root: String, ticket: String, role: String) -> Result<Session
         ("@iudex_ticket", ticket.as_str()),
         ("@iudex_role", role.as_str()),
         ("@iudex_started", started.as_str()),
+        ("@iudex_root", root.as_str()),
     ] {
         let _ = Command::new("tmux")
             .args(["set-option", "-t", &name, opt, val])
@@ -267,6 +294,7 @@ pub fn spawn_agent(root: String, ticket: String, role: String) -> Result<Session
         ticket: Some(ticket),
         role: nonempty(&role),
         started: Some(started),
+        root: Some(root),
         title: String::new(),
     })
 }
@@ -314,7 +342,11 @@ pub fn spawn_idea(root: String, skill: String, seed: String) -> Result<Session, 
         .args(["set-option", "-w", "-t", &name, "remain-on-exit", "on"])
         .status();
     enable_mouse(&name);
-    for (opt, val) in [("@iudex_role", skill.as_str()), ("@iudex_started", started.as_str())] {
+    for (opt, val) in [
+        ("@iudex_role", skill.as_str()),
+        ("@iudex_started", started.as_str()),
+        ("@iudex_root", root.as_str()),
+    ] {
         let _ = Command::new("tmux")
             .args(["set-option", "-t", &name, opt, val])
             .status();
@@ -326,6 +358,7 @@ pub fn spawn_idea(root: String, skill: String, seed: String) -> Result<Session, 
         ticket: None,
         role: nonempty(&skill),
         started: Some(started),
+        root: Some(root),
         title: format!("idea: {skill}"),
     })
 }
@@ -386,6 +419,7 @@ pub fn spawn_resolver(root: String, ticket: String, worktree: String) -> Result<
         ("@iudex_ticket", ticket.as_str()),
         ("@iudex_role", "resolve"),
         ("@iudex_started", started.as_str()),
+        ("@iudex_root", root.as_str()),
     ] {
         let _ = Command::new("tmux")
             .args(["set-option", "-t", &name, opt, val])
@@ -398,6 +432,7 @@ pub fn spawn_resolver(root: String, ticket: String, worktree: String) -> Result<
         ticket: Some(ticket),
         role: Some("resolve".to_string()),
         started: Some(started),
+        root: Some(root),
         title: String::new(),
     })
 }

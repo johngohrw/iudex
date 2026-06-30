@@ -168,6 +168,7 @@ export interface Session {
   ticket: string | null;
   role?: string | null; // agent's role at spawn ("impl" | "qa")
   started?: string | null; // agent spawn time (unix millis string, sortable)
+  root?: string | null; // workspace this session belongs to (@iudex_root)
   title: string;
 }
 

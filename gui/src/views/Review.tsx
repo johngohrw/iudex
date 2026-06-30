@@ -52,7 +52,7 @@ export default function Review({ ws, root }: { ws: Workspace; root: string }) {
   const [actErr, setActErr] = useState<string | null>(null);
   const [mergeFile, setMergeFile] = useState<string | null>(null);
 
-  const { sessions } = useSessions();
+  const { sessions } = useSessions(root);
 
   // Honor a ticket handed in from another view (e.g. a panel's "Go to Review").
   useEffect(() => {
@@ -209,7 +209,7 @@ export default function Review({ ws, root }: { ws: Workspace; root: string }) {
   };
   const openShell = (cwd: string) =>
     act(async () => {
-      const s = await api.createShell(cwd);
+      const s = await api.createShell(root, cwd);
       goTo("terminal", { id: s.name });
     });
   const openInEditor = (path: string) =>

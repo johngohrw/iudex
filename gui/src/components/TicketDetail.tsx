@@ -69,7 +69,7 @@ export default function TicketDetail({
 }) {
   const { goTo } = useNav();
   const { docs, loading } = useTicketDocs(root, ticket);
-  const { sessions } = useSessions();
+  const { sessions } = useSessions(root);
   const agentSessions = sessions.filter(
     (s) => s.kind === "agent" && s.ticket === ticket.id,
   );

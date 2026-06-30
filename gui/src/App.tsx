@@ -64,7 +64,7 @@ export default function App() {
 
   // Views stay mounted after switch-away (state intact); pruned after inactivity.
   const mounted = useViewKeepAlive(view);
-  const { sessions } = useSessions();
+  const { sessions } = useSessions(root);
   // Opt-in auto-activate / auto-QA drains + the steady-cadence poll.
   const { autoActivate, autoQA, toggleAutoActivate, toggleAutoQA } =
     useAutomation(root, ws, sessions, load, setError);

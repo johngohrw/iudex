@@ -99,7 +99,7 @@ export default function Worktrees({
   const openShell = async () => {
     if (!selPath) return;
     try {
-      const s = await api.createShell(selPath);
+      const s = await api.createShell(root, selPath);
       goTo("terminal", { id: s.name });
     } catch (e) {
       setPaneErr(String(e));
