@@ -20,6 +20,28 @@ export interface Workspace {
   tickets: Ticket[];
 }
 
+// Mirrors the `iudex spec --json` contract — PRDs parsed from .context/prd, the
+// read path for the Specifications view. Parsing is single-sourced in the CLI
+// (internal/spec), so these shapes track that command's output, not a re-parse.
+// `status` is "active" | "parked" | "out-of-scope" (default active). v1 is
+// structure only — no requirement→ticket coverage yet.
+export interface Requirement {
+  id: string;
+  title: string;
+  status: string;
+  body: string;
+}
+
+export interface PRD {
+  file: string;
+  title: string;
+  requirements: Requirement[];
+}
+
+export interface SpecDoc {
+  prds: PRD[];
+}
+
 // A physical git worktree (from `list_worktrees`), joined on the frontend with
 // the tickets that map onto it. Keyed by `path`, so it appears once even if more
 // than one ticket references it; the relationship shows as ticket badges.
@@ -174,6 +196,7 @@ export type View =
   | "dashboard"
   | "terminal"
   | "tickets"
+  | "specifications"
   | "agents"
   | "worktrees"
   | "review"
@@ -191,6 +214,7 @@ export const VIEWS: Record<View, ViewConfig> = {
   dashboard: { id: "dashboard", label: "Dashboard", dot: "#f4bc41" },
   terminal: { id: "terminal", label: "Terminal", dot: "#343fd5" },
   tickets: { id: "tickets", label: "Tickets", dot: "#5bc7d8" },
+  specifications: { id: "specifications", label: "Specs", dot: "#caa46a" },
   agents: { id: "agents", label: "Agents", dot: "#5ccf5c" },
   worktrees: { id: "worktrees", label: "Worktrees", dot: "#9ea0e0" },
   review: { id: "review", label: "Review", dot: "#836ddd" },

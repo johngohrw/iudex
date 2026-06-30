@@ -20,6 +20,7 @@ import type {
   AgentSettings,
   ArchiveEntry,
   ArchiveDocs,
+  SpecDoc,
 } from "../types";
 
 // Command return shapes that aren't reused elsewhere (so they live here, not in
@@ -58,6 +59,14 @@ export const readPrompt = (root: string, name: string) =>
   invoke<string>("read_prompt", { root, name });
 export const writePrompt = (root: string, name: string, content: string) =>
   invoke<void>("write_prompt", { root, name, content });
+
+// ── Specifications (PRDs) ───────────────────────────────────────────────────
+// Structure comes from the CLI (`iudex spec --json`, parsing single-sourced in
+// internal/spec); raw markdown is a plain file read for the source pane.
+export const specJson = (root: string) =>
+  runIudex(root, ["spec", "--json"]).then((out) => JSON.parse(out) as SpecDoc);
+export const readPrd = (root: string, file: string) =>
+  invoke<string>("read_prd", { root, file });
 export const getIudexSettings = () => invoke<IudexSettings>("get_iudex_settings");
 export const setIudexBin = (path: string) => invoke<string>("set_iudex_bin", { path });
 

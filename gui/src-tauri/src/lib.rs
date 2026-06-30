@@ -242,13 +242,20 @@ fn run_iudex(root: String, args: Vec<String>) -> Result<String, String> {
 
 /// Walk up from `start` looking for `.iudex/config.yml`, returning the workspace
 /// root — the same discovery rule the CLI uses (workspace.Find), so it resolves
-/// correctly from inside a ticket worktree too.
+/// correctly from inside a ticket worktree too. The home directory is skipped:
+/// ~/.iudex/config.yml is the reserved machine-level config, not a workspace, so
+/// an empty folder under $HOME must not resolve home as its workspace root.
 #[tauri::command]
-fn discover_workspace(start: String) -> Result<String, String> {
+fn discover_workspace(app: AppHandle, start: String) -> Result<String, String> {
+    let home = app
+        .path()
+        .home_dir()
+        .ok()
+        .and_then(|h| std::fs::canonicalize(h).ok());
     let mut dir = std::fs::canonicalize(&start)
         .map_err(|e| format!("cannot resolve {start}: {e}"))?;
     loop {
-        if dir.join(".iudex").join("config.yml").is_file() {
+        if Some(&dir) != home.as_ref() && dir.join(".iudex").join("config.yml").is_file() {
             return Ok(dir.to_string_lossy().into_owned());
         }
         match dir.parent() {
@@ -594,6 +601,21 @@ fn read_prompt(root: String, name: String) -> Result<String, String> {
 fn write_prompt(root: String, name: String, content: String) -> Result<(), String> {
     let path = prompt_path(&root, &name)?;
     std::fs::write(&path, content).map_err(|e| format!("write {}: {e}", path.display()))
+}
+
+/// Read a PRD's raw markdown from `.context/prd/<file>`. The Specifications view
+/// gets its requirement *structure* from `iudex spec --json` (parsing is
+/// single-sourced in the CLI); this returns the verbatim source for the raw pane,
+/// the same kind of plain file read as `read_prompt`. Only the basename is
+/// honored, so a crafted `file` cannot escape the PRD directory.
+#[tauri::command]
+fn read_prd(root: String, file: String) -> Result<String, String> {
+    let name = Path::new(&file)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| format!("invalid prd file {file:?}"))?;
+    let path = Path::new(&root).join(".context").join("prd").join(name);
+    std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))
 }
 
 /// Run `iudex status --json` in `root` and return the parsed JSON. This is the
@@ -1776,6 +1798,7 @@ pub fn run() {
             write_agent_config,
             read_prompt,
             write_prompt,
+            read_prd,
             iudex_status,
             run_iudex,
             compose_ticket,

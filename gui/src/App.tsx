@@ -9,6 +9,7 @@ import { useAutomation } from "./lib/automation";
 import { useOnboarding } from "./lib/onboarding";
 import Dashboard from "./views/Dashboard";
 import Tickets from "./views/Tickets";
+import Specifications from "./views/Specifications";
 import Terminal from "./views/Terminal";
 import Agents from "./views/Agents";
 import Worktrees from "./views/Worktrees";
@@ -189,6 +190,7 @@ export default function App() {
               {error && <div className="error">{error}</div>}
               {renderView("dashboard", <Dashboard />)}
               {renderView("tickets", <Tickets ws={ws} root={root} />)}
+              {renderView("specifications", <Specifications root={root} />)}
               {renderView(
                 "terminal",
                 <Terminal root={root} visible={view === "terminal"} />,
