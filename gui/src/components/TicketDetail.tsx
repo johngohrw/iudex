@@ -4,7 +4,11 @@ import type { Session, Ticket, Workspace } from "../types";
 import { useTicketDocs } from "../lib/tickets";
 import { useNav } from "../lib/nav";
 import { useSessions } from "../lib/sessions";
-import { nextAction, type Intent } from "../lib/ticketActions";
+import {
+  nextAction,
+  liveAgentFor,
+  type Intent,
+} from "../lib/ticketActions";
 import {
   useAgentStatuses,
   STATUS_LABEL,
@@ -387,10 +391,16 @@ function FooterActions({
           goTo("agents", { id: s.name });
         });
       case "resume-impl":
-      case "open-agent":
         return spawnAndJump("impl");
       case "spawn-qa":
         return spawnAndJump("qa");
+      case "open-agent": {
+        const sess = liveAgentFor(ticket, sessions);
+        if (sess) return goTo("agents", { id: sess.name });
+        // Raced — the agent died between render and click; fall back to spawning
+        // the role the ticket's state expects.
+        return spawnAndJump(ticket.state === "pending-qa" ? "qa" : "impl");
+      }
       case "review":
         return goTo("review", { id: ticket.id });
       case "retry":

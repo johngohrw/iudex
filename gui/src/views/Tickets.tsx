@@ -5,7 +5,12 @@ import { IDEA_SKILLS } from "../lib/skills";
 import { useNav, usePendingFocus } from "../lib/nav";
 import { useTicketTitles } from "../lib/agents";
 import { useSessions } from "../lib/sessions";
-import { nextAction, type Intent } from "../lib/ticketActions";
+import {
+  nextAction,
+  liveAgentFor,
+  expectedRole,
+  type Intent,
+} from "../lib/ticketActions";
 import { stateDot } from "../lib/badges";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
@@ -68,33 +73,40 @@ export default function Tickets({ ws, root }: { ws: Workspace; root: string }) {
     }
   };
 
+  // Spawn an agent for `id` in `role` and jump to its cockpit.
+  const spawnAndJump = (id: string, role: string) =>
+    act(id, async () => {
+      const s = await api.spawnAgent(root, id, role);
+      goTo("agents", { id: s.name });
+    });
+
   // Run a `nextAction` intent. Mapping intent → side effect is per-view (busy is
   // tracked per row here; the panel uses its own runner) but the *choice* of
   // intent is single-sourced in `nextAction`. `note` never reaches here (it
   // renders muted text, not a button).
-  const runIntent = (intent: Intent, id: string) => {
+  const runIntent = (intent: Intent, t: Ticket) => {
     switch (intent) {
       case "activate-impl":
-        return act(id, async () => {
-          await api.runIudex(root, ["activate", id]);
-          const s = await api.spawnAgent(root, id, "impl");
+        return act(t.id, async () => {
+          await api.runIudex(root, ["activate", t.id]);
+          const s = await api.spawnAgent(root, t.id, "impl");
           goTo("agents", { id: s.name });
         });
       case "resume-impl":
-      case "open-agent":
-        return act(id, async () => {
-          const s = await api.spawnAgent(root, id, "impl");
-          goTo("agents", { id: s.name });
-        });
+        return spawnAndJump(t.id, "impl");
       case "spawn-qa":
-        return act(id, async () => {
-          const s = await api.spawnAgent(root, id, "qa");
-          goTo("agents", { id: s.name });
-        });
+        return spawnAndJump(t.id, "qa");
+      case "open-agent": {
+        const sess = liveAgentFor(t, sessions);
+        if (sess) return goTo("agents", { id: sess.name });
+        // The agent vanished between render and click — fall back to spawning
+        // the role so the button still does something useful.
+        return spawnAndJump(t.id, expectedRole(t.state) ?? "impl");
+      }
       case "review":
-        return goTo("review", { id });
+        return goTo("review", { id: t.id });
       case "retry":
-        return act(id, () => api.runIudex(root, ["retry", id]));
+        return act(t.id, () => api.runIudex(root, ["retry", t.id]));
       case "note":
         return;
     }
@@ -230,7 +242,7 @@ export default function Tickets({ ws, root }: { ws: Workspace; root: string }) {
                           variant={a.variant}
                           size="sm"
                           disabled={busy !== null}
-                          onClick={() => runIntent(a.intent, t.id)}
+                          onClick={() => runIntent(a.intent, t)}
                         >
                           {a.label}
                         </Button>

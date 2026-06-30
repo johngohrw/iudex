@@ -7,17 +7,12 @@ import type { Session, Ticket } from "../types";
 // ticket offers. It is a *pure* descriptor: it decides the intent + label, never
 // the side effect. Each view owns a thin `runIntent` that maps the intent to its
 // own handler (busy-tracking and post-action nav legitimately differ per view).
-//
-// `sessions` is accepted now but not yet branched on. The follow-up (#1/#5 in
-// .context/prd/gui-ux-fixes.md) fills in the active-ticket branch here only —
-// `open-agent` when a live impl agent already exists, and the "Resume impl"
-// relabel of `resume-impl` — without touching either view.
 
 export type Intent =
   | "activate-impl" // queued + ready: activate, then spawn impl, jump to Agents
-  | "resume-impl" // active: spawn impl agent (interim label "Spawn agent")
-  | "open-agent" // reserved for #1 — jump to the live agent; unused this PR
-  | "spawn-qa" // pending-qa: spawn QA agent
+  | "resume-impl" // active + no agent: spawn impl agent (post-reject resume)
+  | "open-agent" // active/pending-qa + a live agent already exists: jump to it
+  | "spawn-qa" // pending-qa + no agent: spawn QA agent
   | "review" // pending-human-qa: jump to Review
   | "retry" // failed: retry
   | "note"; // non-action: muted text, no button (blocked / merged / terminal)
@@ -28,20 +23,51 @@ export interface TicketAction {
   variant?: Variant; // present iff actionable; a bare `note` has none
 }
 
-// `sessions` is intentionally unused until #1/#5; keep it in the signature so the
-// call sites are already wired when that branch lands.
-export function nextAction(t: Ticket, _sessions: Session[]): TicketAction {
+// The agent role that does the work in a given state — impl while active, qa
+// while pending-qa. Returns null for states with no role-scoped agent. Used to
+// both pick which session to look for and which role a spawn should create.
+export function expectedRole(state: string): "impl" | "qa" | null {
+  if (state === "active") return "impl";
+  if (state === "pending-qa") return "qa";
+  return null;
+}
+
+// The session for this ticket's expected role, if one is present in the pool.
+// Presence-based (a session existing, regardless of liveness — see #1 in
+// gui-ux-fixes.md): the list carries no liveness signal, and a lingering dead
+// session is handled by opening it, then killing it to respawn. When more than
+// one matches, return the most recently started (highest `started`), so
+// "Open agent" jumps to the freshest. Single-sources the match rule for both
+// `nextAction` (which action) and the views' `runIntent` (which session to open).
+export function liveAgentFor(
+  t: Ticket,
+  sessions: Session[],
+): Session | undefined {
+  const role = expectedRole(t.state);
+  if (!role) return undefined;
+  return sessions
+    .filter((s) => s.kind === "agent" && s.ticket === t.id && s.role === role)
+    .sort((a, b) => (b.started ?? "").localeCompare(a.started ?? ""))[0];
+}
+
+export function nextAction(t: Ticket, sessions: Session[]): TicketAction {
   switch (t.state) {
     case "queued":
       return t.ready
         ? { intent: "activate-impl", label: "Activate & start", variant: "secondary" }
         : { intent: "note", label: "blocked" };
     case "active":
-      // Interim: always offer to spawn impl. #1/#5 will branch on `sessions`
-      // here (open-agent if one is live; "Resume impl" when none).
-      return { intent: "resume-impl", label: "Spawn agent", variant: "secondary" };
+      // A live impl agent already on it → jump to it rather than spawning a
+      // second (#1); otherwise offer to (re)start impl — the resume path a
+      // QA/human reject opens (#5).
+      return liveAgentFor(t, sessions)
+        ? { intent: "open-agent", label: "Open agent", variant: "secondary" }
+        : { intent: "resume-impl", label: "Resume impl", variant: "secondary" };
     case "pending-qa":
-      return { intent: "spawn-qa", label: "Start QA", variant: "secondary" };
+      // Same guard on the QA side: don't double-spawn a reviewer.
+      return liveAgentFor(t, sessions)
+        ? { intent: "open-agent", label: "Open agent", variant: "secondary" }
+        : { intent: "spawn-qa", label: "Start QA", variant: "secondary" };
     case "pending-human-qa":
       return { intent: "review", label: "Review", variant: "review" };
     case "failed":
