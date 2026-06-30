@@ -90,6 +90,10 @@ export const worktreeFileDiff = (
 ) => invoke<FileDiff>("worktree_file_diff", { worktree, path, mainBranch, threeDot });
 export const worktreeTaskDocs = (worktree: string) =>
   invoke<TaskDocs>("worktree_task_docs", { worktree });
+// Count of uncommitted changes (excluding .task/) — used to warn before a manual
+// finish, whose auto-WIP-commit would otherwise ship unready edits to QA.
+export const worktreeDirtyCount = (worktree: string) =>
+  invoke<number>("worktree_dirty_count", { worktree });
 
 // ── Review / merge preflight / conflict resolution ──────────────────────────
 export const railStatus = (root: string, mainBranch: string, worktrees: string[]) =>

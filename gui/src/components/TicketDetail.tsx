@@ -412,6 +412,34 @@ function FooterActions({
 
   const isTerminal = ticket.state === "done" || ticket.state === "removed";
 
+  // Manual finish (escape hatch). `iudex finish` auto-commits a WIP checkpoint
+  // when the worktree is dirty, so firing it on unready work would ship that to
+  // QA — confirm first when there are uncommitted changes (clean → no prompt).
+  const finishGuarded = () =>
+    onAct(async () => {
+      if (ticket.worktree) {
+        let n = 0;
+        try {
+          n = await api.worktreeDirtyCount(ticket.worktree);
+        } catch {
+          n = -1; // couldn't check — confirm to be safe
+        }
+        if (n !== 0) {
+          const msg =
+            n > 0
+              ? `${n} uncommitted file${n === 1 ? "" : "s"} will be checkpoint-committed and handed to QA. Continue?`
+              : "Couldn't check for uncommitted changes. Finish anyway (any uncommitted work will be checkpoint-committed)?";
+          if (!window.confirm(msg)) return;
+        }
+      }
+      await api.runIudex(root, ["finish", ticket.id]);
+    });
+
+  // Finish belongs to the impl agent (it runs `iudex finish` itself); only offer
+  // the manual hatch when no impl agent is live to do it — a crashed/gone agent
+  // or a human-driven ticket (#3).
+  const showFinish = ticket.state === "active" && !liveAgentFor(ticket, sessions);
+
   return (
     <>
       {a.variant ? (
@@ -426,16 +454,14 @@ function FooterActions({
         <span className={s.footerNote}>{a.label}</span>
       ) : null}
       {/* Destructive / dangerous (and other tucked-away) actions live behind
-          the overflow menu — non-terminal only (nothing to do once done/removed).
-          Finish lives here, not as a primary button: ideally the impl agent runs
-          `iudex finish` itself; this is the manual escape hatch. */}
+          the overflow menu — non-terminal only (nothing to do once done/removed). */}
       {!isTerminal && (
         <FooterOverflow>
-          {ticket.state === "active" && (
+          {showFinish && (
             <button
               className={s.menuItem}
               disabled={busy}
-              onClick={() => run(["finish", ticket.id])}
+              onClick={finishGuarded}
             >
               Finish
             </button>

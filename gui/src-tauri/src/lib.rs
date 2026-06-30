@@ -1013,6 +1013,32 @@ fn worktree_task_docs(worktree: String) -> Result<TaskDocs, String> {
     })
 }
 
+/// Count uncommitted changes in a worktree (`git status --porcelain`, excluding
+/// the ignored `.task/`). The GUI uses this to warn before a manual `iudex
+/// finish`, whose auto-WIP-commit would otherwise ship unready edits to QA. A
+/// clean worktree returns 0.
+#[tauri::command]
+fn worktree_dirty_count(worktree: String) -> Result<usize, String> {
+    let out = Command::new("git")
+        .args(["-C", &worktree, "status", "--porcelain"])
+        .output()
+        .map_err(|e| format!("git status: {e}"))?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    let n = String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter(|l| {
+            // Drop the status code prefix (XY + space) to inspect the path; skip
+            // the .task/ scratch dir, which is git-ignored via the shared exclude
+            // and never part of the handoff.
+            let path = l.get(3..).unwrap_or("").trim();
+            !path.is_empty() && !path.starts_with(".task/")
+        })
+        .count();
+    Ok(n)
+}
+
 /// One archived ticket (.iudex/archive/<id>/) — the list entry for the Archive
 /// view. `outcome` is "done" (merged) or "removed" (abandoned); the GUI filters.
 #[derive(serde::Serialize)]
@@ -1811,6 +1837,7 @@ pub fn run() {
             read_queue_brief,
             write_queue_brief,
             worktree_task_docs,
+            worktree_dirty_count,
             list_archives,
             read_archive,
             merge_preflight,

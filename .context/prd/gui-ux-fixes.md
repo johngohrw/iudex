@@ -34,9 +34,8 @@ hangs off of.
 | #13 | post-action nav rule codified in `lib/nav.ts` (already uniform) | P3 pass |
 | Decision #2 | resolved by #8 — Terminal only ever holds shells now | `d36b35c` |
 
-**Remaining:** only the #3 decision (does `finish` leave the GUI?). One
-sub-thread of Decision #2 is still open (should plain shells survive a GUI
-restart?).
+**Remaining:** nothing in the original backlog. One sub-thread of Decision #2
+is still open (should plain shells survive a GUI restart?).
 
 ---
 
@@ -164,17 +163,25 @@ only ever holds plain shells, where kill-on-close is the desired behavior.
 tmux pool's detach-on-app-close), or is even that "magic" we want gone for
 terminals?
 
-### #3 — Reconsider exposing `finish` in the GUI at all — 🟡 LEAN TAKEN, decision open
+### #3 — Reconsider exposing `finish` in the GUI at all — ✅ RESOLVED (option B)
 **Original finding:** `finish` auto-commits WIP, so firing it mid-edit corrupts
 the handoff; it was also treated inconsistently (table primary button vs buried
 in the detail ⋮ menu). Original proposal was "guard finish with a confirm."
-**Decision (user lean):** Question whether `finish` belongs in the GUI surface at
-all. **Ideally the impl agent runs `iudex finish` itself** from the worktree when
-it's done — the human shouldn't be clicking it.
-**Progress:** #4 already removed Finish from the table row and the panel primary;
-it survives only in the panel ⋮ overflow as a manual escape hatch. Separately,
-the impl prompt now instructs the agent to run `iudex finish t<N>` itself
-(`98e196e`).
-**Open question:** Is there any case where a human *must* finish manually (e.g. a
-human-driven ticket with no agent), and if so does the ⋮ escape hatch suffice or
-should `finish` leave the GUI entirely?
+**Reframe:** `finish` is fundamentally an *agent* action (like qa approve/reject),
+not a human gate — the human gates are human-qa approve/reject. So it shouldn't be
+a routine button; the impl agent should run it. But human-must-finish cases are
+real (a human-driven ticket with no agent, a crashed agent that committed but
+never finished), so the GUI keeps a guarded escape hatch rather than dropping it.
+**Decision (user):** option B — keep a targeted, guarded ⋮ hatch (not remove it
+entirely, not a routine button).
+**Shipped:**
+- #4 already removed Finish from the table row and the panel primary; the impl
+  prompt now has the agent run `iudex finish t<N>` itself (`98e196e`).
+- Finish now appears in the panel ⋮ **only when `active` and no live impl agent**
+  (`!liveAgentFor(...)`) — present for the crashed/gone/human-driven cases, hidden
+  while an agent owns finishing so you can't race it.
+- Clicking it is **guarded by a dirty-state confirm**: a new `worktree_dirty_count`
+  backend command (`git status --porcelain`, excluding `.task/`) drives a prompt
+  ("N uncommitted files will be checkpoint-committed and handed to QA. Continue?")
+  when dirty; a clean worktree finishes with no prompt. This defuses the
+  auto-WIP-commit footgun instead of merely burying it.
