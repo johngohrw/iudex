@@ -148,10 +148,20 @@ export default function Review({ ws, root }: { ws: Workspace; root: string }) {
         await api.runIudex(root, ["human-qa", "approve", selId]);
         // The doorbell will drop this ticket out of `pending`; selection follows.
       } catch (e) {
-        // iudex aborts+restores on any surprise conflict; re-run preflight so the
-        // tab reflects the real state, then surface the error.
+        // The preflight predicts conflicts via `git merge-tree`, but main can move
+        // between the prediction and this real merge. iudex aborts+restores on any
+        // surprise conflict; re-run the preflight so the tab reflects reality, and
+        // show a calm note for that expected case rather than git's raw CONFLICT
+        // dump. Non-merge failures still surface verbatim.
         recheck();
-        throw e;
+        const msg = String(e);
+        if (/conflict/i.test(msg) || /merge .*failed/i.test(msg)) {
+          setActErr(
+            "main moved since the preflight — re-checking for conflicts. See the Conflicts tab.",
+          );
+        } else {
+          setActErr(msg);
+        }
       }
     });
 
@@ -182,6 +192,9 @@ export default function Review({ ws, root }: { ws: Workspace; root: string }) {
     });
   // Merge main into the worktree, then hand the conflicts to a triage agent. If
   // the merge happens to be clean (no conflicts) we skip the agent entirely.
+  // Unlike other spawns, this intentionally stays in Review (the nav rule's one
+  // exception, see lib/nav.ts): the Conflicts tab is the resolver's cockpit, and
+  // "Watch" jumps to its console on demand.
   const resolveWithAgent = () =>
     act(async () => {
       if (!worktree || !selId) return;
@@ -498,12 +511,12 @@ function ReadySummary({
             ✓ Conflicts resolved — kept (+) and removed (−) below.
           </p>
         ) : (
-          <p className={s.ready}>✓ Ready to merge — no conflicts.</p>
+          <p className={s.ready}>✓ No predicted conflicts.</p>
         )}
         {summary && !summary.resolved && (
           <p className="muted">
-            Merges cleanly — {n} file{n === 1 ? "" : "s"} changed on{" "}
-            {mainBranch}.
+            No predicted conflicts — {n} file{n === 1 ? "" : "s"} would change on{" "}
+            {mainBranch}. (Predicted via git merge-tree; main can still move.)
           </p>
         )}
       </div>

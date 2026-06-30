@@ -51,6 +51,13 @@ export default function Tickets({ ws, root }: { ws: Workspace; root: string }) {
   // branch is #1/#5 follow-up; the param is wired now).
   const { sessions } = useSessions(root);
 
+  // Legend for the QA column (a bare count is opaque) — explains what the number
+  // means and how it relates to the configured reject limit.
+  const qaLegend =
+    ws.qaRejectLimit > 0
+      ? `QA rejections — times QA bounced this ticket back (${ws.qaRejectLimit} → ticket fails)`
+      : "QA rejections — times QA bounced this ticket back (unlimited)";
+
   // Tickets shown across all three views: the live working set. Terminal
   // tickets are hidden — removed are gone, done graduate to the archive.
   const visible = ws.tickets.filter(
@@ -168,7 +175,9 @@ export default function Tickets({ ws, root }: { ws: Workspace; root: string }) {
                 <div>TITLE</div>
                 <div>STATE</div>
                 <div>DEPS</div>
-                <div className={s.thCenter}>QA</div>
+                <div className={s.thCenter} title={qaLegend}>
+                  QA
+                </div>
                 <div>WORKTREE</div>
                 <div>ACTION</div>
               </div>
@@ -222,6 +231,7 @@ export default function Tickets({ ws, root }: { ws: Workspace; root: string }) {
                     <div
                       className={`${s.cellQa} ${t.qaRejects > 0 ? s.cellQaHot : ""}`}
                       style={on ? { color: "#fff" } : undefined}
+                      title={qaLegend}
                     >
                       {t.qaRejects || ""}
                     </div>
@@ -339,7 +349,7 @@ function ComposeTicketModal({
 
   return (
     <Modal
-      title={`New ticket${nextId ? ` (${nextId})` : ""}`}
+      title={`New ticket${nextId ? ` — will be ${nextId}` : ""}`}
       onClose={onClose}
       actions={
         <>

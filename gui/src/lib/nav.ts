@@ -16,6 +16,17 @@ import type { View } from "../types";
 // A Focus is what the target should select/open: `id` is view-specific (a tmux
 // session name for terminal/agents; a ticket id for tickets/review) and `tab`
 // is an optional sub-target (the Agents console tab).
+//
+// Post-action navigation rule (keep new call sites consistent — see #13 in
+// .context/prd/gui-ux-fixes.md):
+//   1. Spawning a session ALWAYS jumps to its cockpit — agents → "agents",
+//      shells → "terminal" — so the thing you just started is in front of you.
+//   2. State-only transitions (finish, retry, remove, qa/human-qa verdicts)
+//      STAY PUT; the events doorbell re-derives the list in place.
+//   3. Explicit "Go to X" buttons navigate as labelled (not a surprise).
+// The one deliberate exception is the merge resolver: spawning it stays in
+// Review, because the Conflicts tab IS its human cockpit (a "Watch" button
+// reaches the raw console on demand).
 export type Focus = { id: string; tab?: string };
 
 export type NavValue = {
