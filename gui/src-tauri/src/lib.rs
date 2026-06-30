@@ -663,12 +663,15 @@ fn compose_ticket(
     }
     let ticket = format!("t{n}");
 
-    // Build the brief: a title heading (when given) followed by the body.
+    // Build the brief: an H1 title heading (when given) followed by the body.
+    // The title is the bare descriptive text — no `tN:` prefix, since the id is
+    // shown separately (matches what the to-issues skill writes). When no title
+    // is given, fall back to the id so the brief still has a parsable H1.
     let title = title.trim();
     let body = body.trim();
     let content = match (title.is_empty(), body.is_empty()) {
-        (false, false) => format!("# {ticket}: {title}\n\n{body}\n"),
-        (false, true) => format!("# {ticket}: {title}\n"),
+        (false, false) => format!("# {title}\n\n{body}\n"),
+        (false, true) => format!("# {title}\n"),
         (true, false) => format!("{body}\n"),
         (true, true) => format!("# {ticket}\n"),
     };
