@@ -88,6 +88,10 @@ func (c *Config) AgentCommandForRole(role string) string {
 // that contains .iudex/config.yml, and returns that directory (the workspace
 // root). It works the same way git locates a repository from a subdirectory,
 // so it resolves correctly from inside a ticket worktree too.
+//
+// The home directory is skipped: ~/.iudex/config.yml is the reserved
+// machine-level config (the agent-command pool), not a workspace, so walking up
+// from an empty folder under $HOME must not mistake home for a workspace root.
 func Find(start string) (string, error) {
 	dir := start
 	if dir == "" {
@@ -101,9 +105,17 @@ func Find(start string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	home, err := os.UserHomeDir()
+	if err == nil {
+		home, _ = filepath.Abs(home)
+	} else {
+		home = "" // can't resolve home; fall back to matching every dir
+	}
 	for {
-		if _, err := os.Stat(filepath.Join(dir, Dir, "config.yml")); err == nil {
-			return dir, nil
+		if dir != home {
+			if _, err := os.Stat(filepath.Join(dir, Dir, "config.yml")); err == nil {
+				return dir, nil
+			}
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {

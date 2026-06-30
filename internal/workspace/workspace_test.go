@@ -1,6 +1,59 @@
 package workspace
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+// TestFindSkipsHome guards against the home/global-config collision:
+// ~/.iudex/config.yml is the reserved machine-level config, so walking up from
+// an empty folder under $HOME must not resolve home as a workspace root. A real
+// nested workspace under home must still be found.
+func TestFindSkipsHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// Simulate the global config at ~/.iudex/config.yml.
+	mkConfig(t, home)
+
+	// An empty folder under home must not resolve to home.
+	empty := filepath.Join(home, "empty")
+	if err := os.Mkdir(empty, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := Find(empty); err == nil {
+		t.Fatalf("Find(%q) = %q, want error (home must be skipped)", empty, got)
+	}
+
+	// A real nested workspace is still discovered from a subdirectory.
+	proj := filepath.Join(home, "proj")
+	mkConfig(t, proj)
+	sub := filepath.Join(proj, "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Find(sub)
+	if err != nil {
+		t.Fatalf("Find(%q) error: %v", sub, err)
+	}
+	want, _ := filepath.Abs(proj)
+	if got != want {
+		t.Errorf("Find(%q) = %q, want %q", sub, got, want)
+	}
+}
+
+// mkConfig writes an empty .iudex/config.yml under dir, marking it a workspace.
+func mkConfig(t *testing.T, dir string) {
+	t.Helper()
+	idx := filepath.Join(dir, Dir)
+	if err := os.MkdirAll(idx, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(idx, "config.yml"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // TestAgentCommandForRole pins the role->command resolution rule that is the
 // single source of truth (CLI `agent-command`/`spawn` and any GUI consumer).
