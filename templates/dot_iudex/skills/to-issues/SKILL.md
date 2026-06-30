@@ -13,6 +13,8 @@ Break a plan into independently-grabbable iudex tickets using vertical slices (t
 
 Work from whatever is already in the conversation context. If the user points at a PRD (e.g. `.context/prd/<slug>.md`), read it in full. Read the domain glossary — every top-level `*.md` in `.context/` — so ticket titles and descriptions use the project's vocabulary, and respect ADRs in `.context/adr/` for the area you're touching.
 
+If the source is a PRD, normalize its requirement ids first: run `iudex spec lint --fix .context/prd/<slug>.md` so every requirement has a stable, assigned `REQ-N` id (it's idempotent and append-only — safe to run on an already-clean PRD), then `iudex spec` to see the parsed requirement list. Reference those `REQ-N` ids when you slice, so each ticket traces back to the requirements it satisfies.
+
 ### 2. Explore the codebase (optional)
 
 If you have not already explored the codebase, do so to understand the current state of the code.
@@ -36,7 +38,7 @@ Present the proposed breakdown as a numbered list. For each slice, show:
 - **Title**: short descriptive name
 - **Type**: HITL / AFK
 - **Blocked by**: which other slices (if any) must complete first
-- **User stories covered**: which user stories this addresses (if the source material has them)
+- **Requirements covered**: which PRD requirements (`REQ-N` ids) this slice satisfies, if the source is a PRD
 
 Ask the user:
 
@@ -78,5 +80,6 @@ Avoid specific file paths or code snippets — they go stale fast. Exception: if
 
 - Type: HITL / AFK (and why, if HITL).
 - Blockers (for the human reader): tN, tM — registered canonically via `iudex queue --deps`.
+- Requirements covered (for the human reader): `REQ-N`, `REQ-M` from the source PRD. This is prose traceability for now; a canonical requirement→ticket link (`iudex queue --satisfies`) is planned but not yet available.
 - Reference to the source PRD under `.context/prd/` if applicable.
 </ticket-template>
